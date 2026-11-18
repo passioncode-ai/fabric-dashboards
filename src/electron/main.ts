@@ -5,6 +5,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Noti
 import { joinLink } from '../core/join';
 import { pathToFileURL } from 'node:url';
 import { guardIpc } from './ipc-guard';
+import { DialogGate } from '../core/ipc-guard';
 import { BugStore } from './bug-store';
 import { expectedFailure, newIssueUrl } from '../core/bugs';
 import { spawn } from 'node:child_process';
@@ -1292,6 +1293,7 @@ if (!app.requestSingleInstanceLock()) {
     estate.start(); // ADR-0018: first estate check 90 s after start, then every 6 h — only when the switch is on
     // #endregion estate-update
     if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);
+    const refusals = new DialogGate();
     handleLink = (raw: string) => {
       const known = monitor.snapshots().map((s) => ({ key: s.key, descriptor: s.descriptor }));
       const result = parseDeepLink(raw, known);
@@ -1299,9 +1301,13 @@ if (!app.requestSingleInstanceLock()) {
         // The reason is logged, never the raw link — a link is not trusted text; the parts a
         // reason quotes are JSON-escaped and clipped (src/core/deeplink.ts).
         log(`deep link refused: ${result.reason}`);
+        // FD-318 (S2-03): one refusal open at a time and at most one every 2 s, so a page firing bad links cannot stack
+        // dialogs or keep raising the window; the rest are logged only.
+        if (!refusals.take('link')) return;
         showWindow();
         // The reason names what is wrong (an unknown service, a path off its origin), never the link.
-        void dialog.showMessageBox({ type: 'warning', message: t(lang(), 'link.refused.title'), detail: t(lang(), 'link.refused.body', { reason: result.reason }), buttons: ['OK'] });
+        void dialog.showMessageBox({ type: 'warning', message: t(lang(), 'link.refused.title'), detail: t(lang(), 'link.refused.body', { reason: result.reason }), buttons: ['OK'] })
+          .finally(() => refusals.done('link'));
         return;
       }
       const { target } = result;

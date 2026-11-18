@@ -60,6 +60,9 @@ test('ADR-0025: the channel is private, takes only this run\'s key, and goes wit
   assert.equal(fs.statSync(ch!.address).mode & 0o777, 0o600);
   assert.deepEqual(await send(ch!.address, `${JSON.stringify({ key: 'f'.repeat(64), op: 'console.new', service: 'a.b' })}\n`), { ok: false, code: 'bad-key' });
   assert.deepEqual(started, [], 'a wrong key starts nothing');
+  // FD-318 (S2-06): a second wrong key within the minute is refused without a second log line.
+  assert.deepEqual(await send(ch!.address, `${JSON.stringify({ key: 'e'.repeat(64), op: 'console.new', service: 'a.b' })}\n`), { ok: false, code: 'bad-key' });
+  assert.equal(logs.filter((l) => l.includes('wrong key')).length, 1);
   assert.ok(!logs.join('\n').includes(key), 'the key is never logged');
   assert.deepEqual(await send(ch!.address, `${JSON.stringify({ key, op: 'console.fix', service: 'a.b', task: { kind: 'fix', output: 'down' } })}\n`), { ok: true, consoleKey: 'a.b' });
   assert.deepEqual(started, [{ key, op: 'console.fix', service: 'a.b', task: { kind: 'fix', output: 'down' } }]);
@@ -109,4 +112,13 @@ test('FD-249: an agent gives a task in its own words (ask) and continues the las
   assert.equal(ok({ key: 'k', op: 'console.new', service: 'a.b', mode: 'continue' }).request?.mode, 'continue');
   assert.equal(ok({ key: 'k', op: 'console.new', service: 'a.b', mode: 'resume' }).code, 'bad-mode');
   assert.equal(ok({ key: 'k', op: 'console.fix', service: 'a.b', task: { kind: 'fix', output: 'x' }, mode: 'continue' }).code, 'bad-mode', 'only console.new takes a mode');
+});
+
+test('FD-318 (S2-07): a folder on another machine is an absolute path no shell can read as a command', () => {
+  const { remoteFolderOk } = require('../src/core/platform') as typeof import('../src/core/platform');
+  for (const ok of ['/srv/work/my app', '/opt/проекты/агент', '/srv/a-b_c.d/~x@y+z']) assert.equal(remoteFolderOk(ok), true, ok);
+  for (const bad of ['relative/x', '/x;rm -rf ~', '/x$(id)', '/x`id`', "/x'y", '/x"y', '/x|y', '/x&y', '/x\ny', '/x\\y', '/x*']) assert.equal(remoteFolderOk(bad), false, JSON.stringify(bad));
+  const start = (folder: string) => parseRequest(JSON.stringify({ key: 'k'.repeat(64), op: 'session.new', start: { kind: 'session', machine: 'studio', folder } }));
+  assert.equal(start('/srv/x').ok, true);
+  assert.deepEqual(start('/x;id'), { ok: false, code: 'bad-start' });
 });

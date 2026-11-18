@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { isOwnConsoleKey } from './new-session';
-import { MACHINE } from './platform';
+import { MACHINE, remoteFolderOk } from './platform';
 import type { SessionRow } from './sessions';
 
 export const CHANNEL_MAX_BYTES = 64 * 1024;
@@ -142,7 +142,7 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
       return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', start: { kind: 'terminal', machine: c.machine } } };
     }
     // FD-206: a machine as ssh knows it, and then a folder there is required.
-    if (c.machine !== undefined && (typeof c.machine !== 'string' || !MACHINE.test(c.machine) || typeof c.folder !== 'string' || !c.folder.startsWith('/'))) return { ok: false, code: 'bad-start' };
+    if (c.machine !== undefined && (typeof c.machine !== 'string' || !MACHINE.test(c.machine) || typeof c.folder !== 'string' || !remoteFolderOk(c.folder))) return { ok: false, code: 'bad-start' };
     if (c.kind !== 'session' && c.kind !== 'agent' && c.kind !== 'dashboard') return { ok: false, code: 'bad-start' };
     if (c.runtime !== undefined && (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime))) return { ok: false, code: 'bad-start' };
     if (c.folder !== undefined && (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(c.folder.startsWith('/') || /^[A-Za-z]:[\\/]/.test(c.folder)))) return { ok: false, code: 'bad-start' };

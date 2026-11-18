@@ -34,6 +34,7 @@ export async function openChannel(o: ChannelOptions): Promise<Channel | null> {
   const address = o.address ?? channelAddress(o.userData, platform, undefined, undefined, key); // FD-258: on Windows, named from the key
   const keyFile = path.join(o.userData, CHANNEL_KEY_FILE);
   const now = o.now ?? Date.now;
+  let wrongKeySaidAt = -Infinity;
   fs.mkdirSync(o.userData, { recursive: true, mode: 0o700 });
   if (platform !== 'win32') {
     fs.chmodSync(o.userData, 0o700);
@@ -64,7 +65,11 @@ export async function openChannel(o: ChannelOptions): Promise<Channel | null> {
       clearTimeout(timer);
       const parsed = parseRequest(buffer.slice(0, nl));
       if (!parsed.ok) return answer(socket, { ok: false, code: parsed.code });
-      if (!keyMatches(parsed.request.key, key)) { o.log('console channel: a request with a wrong key was refused'); return answer(socket, { ok: false, code: 'bad-key' }); }
+      if (!keyMatches(parsed.request.key, key)) {
+        // FD-318 (S2-06): said at most once a minute, so a process of this user cannot grow the log with it.
+        if (now() - wrongKeySaidAt >= 60_000) { wrongKeySaidAt = now(); o.log('console channel: a request with a wrong key was refused'); }
+        return answer(socket, { ok: false, code: 'bad-key' });
+      }
       const read = parsed.request.op === 'console.list' || parsed.request.op === 'sessions.list';
       if (!(read ? reads : limit).take(now())) return answer(socket, { ok: false, code: 'busy' });
       if (!read) o.log(`console channel: ${parsed.request.op} for ${parsed.request.service}`); // a read is not logged

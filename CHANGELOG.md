@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.192 - 2026-11-18
+
+### Fixed
+- FD-318 (security audit S2-02, S2-03, S2-06, S2-07):
+  - a held conversation (its task read like instructions) continues with permission prompts on another machine too, and
+    a task is no longer typed into a session on another machine, which cannot read its file: the console says so;
+  - a page firing bad `fabric-dashboards://` links opens one refusal at a time, at most one every 2 s, and the rest are
+    logged only;
+  - a wrong console-channel key is logged at most once a minute;
+  - a folder on another machine passes only as an absolute path with no control or shell character.
+
 ## 0.8.191 - 2026-11-18
 
 ### Fixed

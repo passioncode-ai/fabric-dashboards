@@ -402,7 +402,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
         <p>{notice.text}</p>
         {waiting && running && <button className="btn btn-sm btn-primary" onClick={() => void api().consoleSendTask(serviceKey, waiting).then((r) => {
           setWaiting(null);
-          setNotice(r.ok ? { text: t('console.taskSent'), info: true } : { text: t('console.spawnError', { detail: r.error ?? '' }) });
+          setNotice(r.ok ? { text: t('console.taskSent'), info: true } : { text: r.error === 'remote' ? t('console.taskRemote') : t('console.spawnError', { detail: r.error ?? '' }) });
           term.current?.focus();
         })}>{t('console.sendTask')}</button>}
         {notice.terminalOnly && <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>}

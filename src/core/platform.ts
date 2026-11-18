@@ -150,3 +150,9 @@ export function places(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, home: 
 
 /** FD-206: a machine as ssh knows it: an ssh config alias or `user@host`; nothing that ssh could read as an option. */
 export const MACHINE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,63}(@[A-Za-z0-9._:-]{1,253})?$/;
+
+/** FD-318 (S2-07): a folder on another machine goes to its Switchboard as argv; it is an absolute POSIX path with no
+ *  control character and none a shell reads, so no quoting there can turn it into a command. Letters of any script pass. */
+export function remoteFolderOk(folder: string): boolean {
+  return folder.startsWith('/') && folder.length <= 4096 && !/[\u0000-\u001f\u007f$`"'\\;&|<>*?!(){}[\]]/.test(folder);
+}
