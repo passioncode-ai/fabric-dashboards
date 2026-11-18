@@ -63,6 +63,8 @@ interface RigOptions {
   machine?: { freeDisk?: number; swap?: { total: number; free: number; growable?: boolean } | null };
   /** An agent's own console, `agent.default`, saved on the checkout folder with Claude Code. */
   agentFolder?: boolean;
+  /** FD-326: Switchboard continues a session in its own home (`sessions continue --in-place --hosted`, SB-400). */
+  hosted?: boolean;
 }
 
 function rig(o: RigOptions = {}) {
@@ -89,6 +91,9 @@ function rig(o: RigOptions = {}) {
     run: async (file, args) => {
       calls.push([path.basename(file), ...args]);
       const line = args.join(' ');
+      if (o.hosted && line === 'launch --help') return { code: 0, stdout: '--in-place --provider --surface --hosted', stderr: '' };
+      if (o.hosted && line === 'sessions --help') return { code: 0, stdout: 'Commands:\n  end   End a hosted session', stderr: '' };
+      if (o.hosted && line === 'sessions continue --help') return { code: 0, stdout: '--in-place --hosted --surface <SURFACE>\n  - recovery', stderr: '' };
       if (line === '--json handovers') return ok({ enabled: true, handovers: [{ id: HO, workflow: 'nightly', agent: 'claude-code', account_label: 'Work Max', dir, offered_until: new Date(Date.now() + MIN).toISOString() }] });
       if (line === '--json sessions --all') return ok({ sessions: o.sessions?.(dir) ?? [] });
       if (line === '--json recovery') {
@@ -469,4 +474,24 @@ test('R1-C: continuing an idle-closed agent console from the console itself take
   assert.deepEqual(await r.host.start('agent.default', 'continue', { cols: 80, rows: 24 }), { ok: true });
   assert.deepEqual(r.host.sessionsStatus().rows.map((x) => x.state), ['running-ours'], 'the continued session is the one row');
   assert.equal(r.settings.get().consoles['agent.default']?.idle ?? null, null, 'and the console\'s own mark is cleared, as before');
+});
+
+// ── FD-326 ──
+
+test('FD-326: Continue on a session whose conversation lives in a Switchboard home resumes it there through Switchboard', POSIX, async () => {
+  const id = '9dd3929c-1aed-4d53-aae8-5faf4bd83741';
+  const r = rig({ hosted: true, sessions: (dir) => [{ account_id: 'acc-1', home: '/sb/runtimes/claude-tokens', label: 'Tokens', launched_at: (Date.now() - 10 * MIN) / 1000, mode: 'managed', pool: 'tokens', provider: 'claude', state: 'ended', working_directory: dir, in_place: false }] });
+  const t = path.join(r.home, 'Library', 'Application Support', 'ai.passioncode.fabric-switchboard', 'runtimes', 'claude-tokens', 'projects', r.dir.replace(/[^A-Za-z0-9]/g, '-'));
+  fs.mkdirSync(t, { recursive: true });
+  fs.writeFileSync(path.join(t, `${id}.jsonl`), '{}\n');
+  const at = new Date(Date.now() - 5 * MIN);
+  fs.utimesSync(path.join(t, `${id}.jsonl`), at, at);
+  await r.host.pollSessions();
+  const row = r.host.sessionsStatus().rows.find((x) => x.id.startsWith('sb:'))!;
+  assert.ok(row, JSON.stringify(r.host.sessionsStatus().rows));
+  const done = await r.host.continueSession(row.id);
+  assert.ok(done.ok, JSON.stringify(done));
+  const last = r.spawned.at(-1)!;
+  assert.equal(path.basename(last.file), 'switchboard');
+  assert.deepEqual(last.args, ['sessions', 'continue', id, '--in-place', '--hosted', '--surface', 'dashboards'], 'its own conversation, in its own home, never a new one');
 });

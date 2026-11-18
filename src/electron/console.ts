@@ -32,7 +32,7 @@ import { SERVICE_KEY, type SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, belowFloor, isOldSwitchboard, noAnswer, parseSwitchboardVersion, switchboardStamp, SWITCHBOARD_FLOOR, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
-import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView, claudeConfigRoots, rootOfSession, transcriptInRoots } from '../core/recovery';
 import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesCloseCopy, type CloseCopyResult, type DuplicateSession } from '../core/duplicate-sessions';
 import { parseTargets, remoteAttachArgv, remoteContinueArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
 import { HandoverBook } from '../core/handover-book';
@@ -1509,11 +1509,30 @@ export class ConsoleHost {
     const home = this.o.home ?? os.homedir();
     const sessionId = record?.sessionId ?? (provider === 'claude' ? await this.quietTranscript(row) : null);
     const inv = await this.inventory();
+    // FD-326: a Claude conversation kept in one of Switchboard's homes (a hosted or managed launch) is continued by that
+    // Switchboard in that home, on its own account, never as a new conversation and never in the person's own home.
+    const root = sessionId && provider === 'claude' ? rootOfSession(claudeConfigRoots(home), sessionId, row.folder) : null;
+    if (sessionId && root && root !== path.join(home, '.claude') && inv.switchboard && inv.continueHosted) {
+      const a = admit(await this.machine(row.folder));
+      if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
+      if (await this.heldElsewhere(sessionId)) { this.o.log(`console: session ${id} not continued: a live process holds its conversation (FD-262)`); return { ok: false, reason: 'held' }; }
+      const argv = [inv.switchboard, 'sessions', 'continue', sessionId, '--in-place', '--hosted', '--surface', 'dashboards'];
+      const r = this.manager.start(key, { argv, cwd: row.folder, label: 'Claude Code', env: { PATH: inv.dirs.join(path.delimiter) } }, size);
+      if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
+      this.sessionIds.set(key, { sessionId, provider: 'claude' });
+      this.handoverOf.set(key, { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.account ?? '', dir: row.folder, offeredUntil: 0, paid: row.paid });
+      if (row.origin === 'switchboard' || row.origin === 'handover') this.originOf.set(key, row.origin); else this.originOf.delete(key);
+      if (id.startsWith('st:')) await this.undecline(id, key, inv.switchboard, true);
+      else this.forgetRow(id);
+      this.o.log(`console: session ${id} continued in ${key} with its conversation, through Switchboard in its own home (FD-326)`);
+      this.o.changed?.();
+      return { ok: true, key };
+    }
     // FIX-4: a limit stop's account is the one that ran out; the new session's account comes from Switchboard's in-place
     // record of it (mergeSessions), never from the stop.
     const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.origin === 'limit' ? '' : (row.account ?? ''), dir: row.folder, offeredUntil: 0, paid: row.paid };
     const resumed = row.origin === 'resume' || id.startsWith('st:');
-    const tookUp = Boolean(sessionId && provider && transcriptOf({ session: sessionId, provider } as SbStop, home));
+    const tookUp = Boolean(sessionId && provider && (provider === 'claude' ? root === path.join(home, '.claude') : transcriptOf({ session: sessionId, provider } as SbStop, home)));
     if (sessionId && provider && tookUp) {
       const cli = inv.dirs.map((d) => path.join(d, provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
       if (!cli) return { ok: false, reason: 'no-runtime' };
@@ -1624,8 +1643,10 @@ export class ConsoleHost {
   private async quietTranscript(row: SessionRow): Promise<string | null> {
     const home = this.o.home ?? os.homedir();
     const now = Date.now();
-    if (row.endedAt !== null) return transcriptIn(row.folder, home, row.startedAt, row.endedAt);
-    const id = transcriptIn(row.folder, home, row.startedAt, now, now - 60_000);
+    // FD-326: in the person's own home and in each of Switchboard's homes.
+    const roots = claudeConfigRoots(home);
+    if (row.endedAt !== null) return transcriptInRoots(roots, row.folder, row.startedAt, row.endedAt)?.session ?? null;
+    const id = transcriptInRoots(roots, row.folder, row.startedAt, now, now - 60_000)?.session ?? null;
     if (!id) return null;
     const live = await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null);
     return live && !sessionOpen({ session: id, dir: row.folder } as SbStop, live) ? id : null;

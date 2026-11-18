@@ -221,6 +221,45 @@ export function transcriptIn(folder: string, home: string, from: number | null, 
   return hits.length === 1 ? hits[0]!.replace(/\.jsonl$/, '') : null;
 }
 
+/** FD-326: every Claude Code config folder a session's conversation may live in: the person's own `~/.claude`, then each
+ *  of Switchboard's managed runtimes (`runtimes/<group>`) and isolated homes (`homes/<account>`). */
+export function claudeConfigRoots(home: string, platform: NodeJS.Platform = process.platform): string[] {
+  const base = platform === 'darwin' ? path.join(home, 'Library', 'Application Support', 'ai.passioncode.fabric-switchboard')
+    : platform === 'linux' ? path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'ai.passioncode.fabric-switchboard') : null;
+  const under = (dir: string): string[] => { try { return fs.readdirSync(dir).map((n) => path.join(dir, n)); } catch { return []; } };
+  return [path.join(home, '.claude'), ...(base ? [...under(path.join(base, 'runtimes')), ...under(path.join(base, 'homes'))] : [])];
+}
+
+/** FD-326: the one Claude Code transcript of `folder` written while a session ran, looked for in every config folder
+ *  (`claudeConfigRoots`), with the folder it was found in; null when there is none or more than one in all of them. */
+export function transcriptInRoots(roots: readonly string[], folder: string, from: number | null, to: number, quietAfter: number | null = null): { session: string; root: string } | null {
+  const hits: { session: string; root: string }[] = [];
+  for (const root of roots) {
+    const dir = path.join(root, 'projects', folder.replace(/[^A-Za-z0-9]/g, '-'));
+    let names: string[] = [];
+    try { names = fs.readdirSync(dir); } catch { continue; }
+    for (const n of names) {
+      if (!n.endsWith('.jsonl') || !SESSION.test(n.replace(/\.jsonl$/, ''))) continue;
+      const at = writtenAt(path.join(dir, n));
+      if (at !== null && (from === null || at >= from) && at <= to + 60_000 && (quietAfter === null || at <= quietAfter)) hits.push({ session: n.replace(/\.jsonl$/, ''), root });
+    }
+  }
+  return hits.length === 1 ? hits[0]! : null;
+}
+
+/** FD-326: the config folder that holds a Claude Code conversation's transcript, or null. */
+export function rootOfSession(roots: readonly string[], session: string, folder: string | null): string | null {
+  const name = `${session}.jsonl`;
+  for (const root of roots) {
+    const projects = path.join(root, 'projects');
+    if (folder && fs.existsSync(path.join(projects, folder.replace(/[^A-Za-z0-9]/g, '-'), name))) return root;
+    let dirs: string[] = [];
+    try { dirs = fs.readdirSync(projects); } catch { continue; }
+    if (dirs.some((d) => fs.existsSync(path.join(projects, d, name)))) return root;
+  }
+  return null;
+}
+
 /** The console key a continued session gets when no agent's console owns its folder: `handover.rs-<12 hex>`. */
 export const resumeOwnKey = (stop: SbStop) => `handover.rs-${crypto.createHash('sha256').update(stop.event).digest('hex').slice(0, 12)}`;
 
