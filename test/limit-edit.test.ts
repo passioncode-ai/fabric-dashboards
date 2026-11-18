@@ -74,3 +74,32 @@ test('FD-324: callCapability carries _meta, and reaches an agent with two doors 
   await callCapability(target, 'spend.limits.set', args, '0.8.205', 5_000, { idempotencyKey: 'k-2' });
   assert.deepEqual(calls[1], { name: 'spend_limits_set', args, meta: undefined }, 'a tool of its own takes the arguments as they are');
 });
+
+test('FD-324: Change shows the amount within its bounds, Enforced and the reason; the change history reads in words', async () => {
+  const React = await import('react');
+  (globalThis as { React?: unknown }).React = React; // the renderer's JSX reads React from the scope
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { LimitEditor, LimitChanges } = await import('../src/renderer/components/Spend');
+  const { t: tr } = await import('../src/core/i18n');
+  const en = (k: string, p?: Record<string, string | number>) => tr('en', k, p);
+  const ru = (k: string, p?: Record<string, string | number>) => tr('ru', k, p);
+  const daily = limits.find((l) => l.id === 'machine.daily')!;
+  const form = renderToStaticMarkup(React.createElement(LimitEditor, { agent: 'example-agent.default', limit: daily, t: en, onCancel: () => undefined, onDone: () => undefined }));
+  assert.match(form, /Limit, USD/);
+  assert.match(form, /value="20"/);
+  assert.match(form, /min="1"/);
+  assert.match(form, /max="200"/);
+  assert.match(form, /From \$1\.00 to \$200\.00/);
+  assert.match(form, /Enforced/);
+  assert.match(form, /The agent records it with the change/);
+  assert.match(form, /disabled=""[^>]*>Save/, 'nothing changed and no reason yet: Save waits');
+  const report = summarizeUsage(fixture('positive_service-usage-limits-edit.json'), Date.parse('2026-10-04T12:00:00Z'));
+  const day = (iso: string) => iso.slice(0, 10);
+  const history = renderToStaticMarkup(React.createElement(LimitChanges, { changes: report.limitChanges!, limits: report.limits, t: en, day }));
+  assert.match(history, /<h3>Changes<\/h3>/);
+  assert.match(history, /2026-10-04, Monthly · all projects: \$100\.00 → \$250\.00, not enforced\. Decided by: the operator\. The operator raised/);
+  assert.match(history, /2026-10-01, Emergency stop · all projects: set to \$500\.00\. Decided by: the agent&#x27;s settings\./);
+  const ruHistory = renderToStaticMarkup(React.createElement(LimitChanges, { changes: report.limitChanges!, limits: report.limits, t: ru, day }));
+  assert.match(ruHistory, /<h3>Изменения<\/h3>/);
+  assert.match(ruHistory, /Кто решил: оператор/);
+});

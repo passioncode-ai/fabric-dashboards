@@ -44,6 +44,7 @@ import { callCapability } from '../core/mcp-client';
 import { OrganizationStore, readObservatoryRegistry } from '../core/organization-store';
 import { knownOrganizations, ORGANIZATIONS_EVERY_MS, ORGANIZATIONS_FIRST_MS } from '../core/organizations';
 import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
+import { applyLimitChange, LimitEditError, planLimitChange, SPEND_LIMITS_SET } from '../core/limit-edit';
 import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { readLoad, type LoadEntry } from '../core/load';
@@ -52,7 +53,7 @@ import { OutageAlerts } from './outage-alerts';
 import { uninstall as runUninstall } from './uninstall-flow';
 import { registerFromLink } from './register-flow';
 import { connectLinkOf, type RegisterLink } from '../core/register';
-import type { ConnectAgentResult } from '../core/api';
+import type { ConnectAgentResult, SpendLimitSetResult } from '../core/api';
 import { channelAnswers } from './channel-answers';
 import { alertWords } from '../core/outage-alerts';
 import { isOldSwitchboard } from '../core/switchboard';
@@ -933,6 +934,33 @@ if (!app.requestSingleInstanceLock()) {
       }
       return { entries: lastSpend, readAt: lastSpendAt ? new Date(lastSpendAt).toISOString() : null };
     });
+    // #region limit-edit-ipc — docs: docs/ux/scenarios.md#scn-037-a-cost-that-is-not-known-reads-as-unknown
+    // FD-324 (DEC-0183 SL-2): Change on Spend. The report is read again first (the limit may have changed since the
+    // page drew it); the person who pressed is the operator, so a change that does more than tighten carries their
+    // reason as the operator's words. Spend is read again after a change, so the page shows what the agent recorded.
+    ipcMain.handle(CHANNELS.spendLimitSet, async (_e, key: unknown, raw: unknown): Promise<SpendLimitSetResult> => {
+      const c = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      if (typeof key !== 'string' || typeof c.limitId !== 'string' || typeof c.reason !== 'string') return { ok: false, code: 'invalid-arguments', message: 'key, limitId and reason are required' };
+      const snap = monitor.snapshots().find((s) => s.key === key);
+      if (!snap?.descriptor) return { ok: false, code: 'unknown-service', message: `no installed service ${key}` };
+      const [entry] = await readSpend([snap], { token: readTokenAsync, fetchUsage, now: () => Date.now() });
+      if (entry?.kind !== 'report') return { ok: false, code: 'report-unreadable', message: 'its spend report could not be read now' };
+      const change = { limitId: c.limitId, reason: c.reason, ...(typeof c.limitUsd === 'number' ? { limitUsd: c.limitUsd } : {}), ...(typeof c.enforced === 'boolean' ? { enforced: c.enforced } : {}) };
+      const plan = planLimitChange(entry.summary.limits, change);
+      const now = Date.now();
+      const decision = plan.ok && !plan.tightens ? { by: 'operator' as const, via: 'relayed-instruction' as const, action: SPEND_LIMITS_SET, instruction: change.reason.trim().slice(0, 500), at: new Date(now).toISOString() } : null;
+      try {
+        const answer = await applyLimitChange({ key, look: snap, limits: entry.summary.limits, change, decision, readToken: readTokenAsync, version: app.getVersion(), now });
+        log(`spend: ${key} limit ${change.limitId} changed${decision ? ' (the operator\'s decision)' : ''}`);
+        lastSpendAt = 0;
+        return { ok: true, ...answer };
+      } catch (error) {
+        const code = error instanceof LimitEditError ? error.code : 'internal';
+        log(`spend: ${key} limit ${change.limitId} not changed: ${code}`);
+        return { ok: false, code, message: (error as Error).message.slice(0, 300) };
+      }
+    });
+    // #endregion limit-edit-ipc
     // #region load-ipc — docs: docs/ux/scenarios.md#scn-076-see-how-busy-an-agent-is
     // FD-93: one agent's load, read while its Load tab asks (every 60 s while shown); a hidden window gets the last
     // read of that agent instead of a new one (LC-08), as Spend does.

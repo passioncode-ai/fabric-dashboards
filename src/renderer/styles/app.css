@@ -515,6 +515,12 @@ table.spend th.num, table.spend td.num { text-align: right; }
 /* DEC-0027: every limit of an agent, above its models; a limit that is not enforced is muted, never hidden. */
 .spend-limits { margin-bottom: var(--pc-space-3); }
 .spend-limits tr.muted td { color: var(--pc-text-muted); }
+/* FD-324: Change on a limit, and the agent's record of the changes. */
+.limit-edit { display: grid; grid-template-columns: max-content minmax(10rem, 22rem); gap: var(--pc-space-2) var(--pc-space-3); align-items: center; padding: var(--pc-space-2) 0; }
+.limit-edit > .meta, .limit-edit > p, .limit-edit > .row, .limit-edit > label.row { grid-column: 2; }
+.limit-changes { margin-bottom: var(--pc-space-3); }
+.limit-changes h3 { font-size: var(--pc-type-meta); color: var(--pc-text-muted); margin: 0 0 var(--pc-space-1); }
+.limit-changes ul { margin: 0; padding-left: 1.1rem; }
 /* FD-324: money by day over 30 days in an agent's open row. */
 .spend-daily { margin: 0 0 var(--pc-space-3); }
 .spend-daily figcaption { font: var(--pc-type-meta); color: var(--pc-text-muted); margin-bottom: var(--pc-space-1); }

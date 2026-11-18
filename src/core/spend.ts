@@ -3,11 +3,13 @@
 // DEC-0021). Main process only: the token never reaches the renderer, which gets the sums. Read
 // only while someone looks at Spend or an agent asks — nothing runs when the window is hidden
 // (lifecycle LC-08).
+import { limitDoorOf } from './limit-plan';
 import { settleSum, summarizeUsage, type LimitView, type SpendSide, type SpendSum, type SpendSummary, type UsageReport } from '@passioncode-ai/fabric-service-host/usage';
 import type { Descriptor, Reason, WellKnown } from './types';
 
 export type SpendEntry =
-  | { key: string; kind: 'report'; summary: SpendSummary }
+  /** FD-324: `canSetLimits` when the agent takes `spend.limits.set` on this Mac (DEC-0183 SL-2). */
+  | { key: string; kind: 'report'; summary: SpendSummary; canSetLimits?: boolean }
   | { key: string; kind: 'none' } // the service declares no usage surface, or has not answered yet
   | { key: string; kind: 'error'; error: string; reason?: Reason }; // `error` English (agents); `reason` for the window's language
 
@@ -37,7 +39,7 @@ export async function readSpend(services: readonly { key: string; state?: string
     if (!usagePath.startsWith('/') || usagePath.startsWith('//')) return { key: s.key, kind: 'error', error: `the usage path ${JSON.stringify(usagePath)} is not a path on the service origin`, reason: { code: 'spend.err.badPath', params: { path: usagePath.slice(0, 80) } } };
     try {
       const report = await deps.fetchUsage(d, usagePath, await deps.token(d.auth.tokenFile));
-      return { key: s.key, kind: 'report', summary: summarizeUsage(report, deps.now()) };
+      return { key: s.key, kind: 'report', summary: summarizeUsage(report, deps.now()), ...(limitDoorOf(s) ? { canSetLimits: true } : {}) };
     } catch (error) {
       // T-25: a failure with no reason of its own (the network, the token file) is still worded in the app's language.
       const reason = (error as { reason?: Reason }).reason ?? { code: 'spend.err.unreachable', params: { error: String((error as Error).message).slice(0, 200) } };
