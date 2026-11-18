@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.199 - 2026-11-18
+
+### Fixed
+- FD-327: an agent that answers as itself but leaves a required member out of its status document (an agent with no
+  events feed) no longer reads «Wrong program on its port» and no longer opens an outage message: it reads degraded with
+  the missing member, its token kept. An answer naming another agent is still another program.
+- FD-329: the same agent answering under another instance (an organization's copy reached through a tunnel) reads as
+  another copy of this agent, with its own notification title, its token still withheld.
+
+### Changed
+- FD-328: the console of an agent placed on another machine starts through that machine's Switchboard
+  (`switchboard launch --target`) when Switchboard here knows the forward's ssh destination, so the folder's group there
+  signs the coding agent in instead of showing its sign-in screen. Service-host 0.11.0 (`nonconforming`).
+
 ## 0.8.198 - 2026-11-18
 
 ### Added

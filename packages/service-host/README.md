@@ -41,7 +41,7 @@ repository root). Node 20 or later.
 ## Protocol
 
 `src/protocol.ts`. `PROTOCOL` (`'fabric-service/0.1'`); `Descriptor`, `WellKnown`,
-`WellKnownResult` (`answer` | `not-protocol` | `no-answer`), `ServiceEvent`, `ServiceState` and
+`WellKnownResult` (`answer` | `nonconforming` | `not-protocol` | `refused` | `no-answer`), `ServiceEvent`, `ServiceState` and
 `SERVICE_STATES` (`invalid`, `stopped`, `conflict`, `foreign-user`, `foreign`, `duplicate`, `down`, `starting`,
 `stopping`, `degraded`, `ready`), `Reason` and `REASON_CODES` — every code `deriveState` can
 return, so a host's message catalogue can be checked against it — `Busy`, `LaunchdStatus`,
@@ -85,8 +85,10 @@ carries every extension as the service sent it. A host turns the declaration int
 
 `src/health.ts`. `fetchWellKnown(origin, timeoutMs = 2000, options?)` → `WellKnownResult`; it never
 throws: silence (refused, timed out) is `no-answer`, any other answer that is not a valid well-known
-document is `not-protocol` with the reason (`checkWellKnown`). The kinds are `answer`,
-`no-answer`, `not-protocol` and, for a remote origin only, `refused`. `request()` caps an answer at 2 MB,
+document is `not-protocol` with the reason (`checkWellKnown`), unless it names `fabric-service/0.1` and an identity: then it
+is `nonconforming` with the reason and that identity (`identityOf`, 0.11.0, FD-327), which `deriveState` reads as
+`degraded` for the service's own identity and `foreign` for another. The kinds are `answer`, `no-answer`,
+`not-protocol`, `nonconforming` and `refused`. `request()` caps an answer at 2 MB,
 follows no redirect, and ends at `timeoutMs` for the whole request — answer included — so a service that
 trickles bytes cannot hold a host's monitor (0.3.2; before, only the socket's idle time was bounded).
 
