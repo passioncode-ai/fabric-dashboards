@@ -10,14 +10,14 @@ test; both fold into 0.8.108).
 ## 0.8.202: template and etalon, an agent without code (2026-11-18)
 
 Released: 0.8.201 (FD-331 Connect an agent, FD-326, FD-333, FD-334, FD-339; 0.8.200 never published, its check failed on
-two path tests). Tagged: v0.8.202 (FD-330 a cloud agent with no repository shows its console muted, «Без агента для
+two path tests). Published: 0.8.202 (run 44388081610 green, 16 assets, 20:49 UTC; FD-330 a cloud agent with no repository shows its console muted, «Без агента для
 кода»; FD-336 Health names the template, its version and the etalon's, from the agents base's template extension, D-71;
 run 44388081610). Board: the agents base told the display shipped (thread `2ee63c7c`, reply `28853975`).
 FD-339's old tool names stay one more release: a notification relay's release checks still call `host_status`, `link` and
 `open` by the old names; asked to move to `execute` (request `caa7ec38`, thread `7dc61f5f`); the names go in the release
 after their answer. Waits: FD-335 and FD-325 need an unlocked screen and load under 40 (now 47 to 58); FD-337 Open in
 Switchboard waits for SB-479; FD-331's rest waits for studio-agent STU-148 (by 2026-11-21); FD-322 not before 2026-11-25.
-Next task: confirm v0.8.202 published (16 assets) and the installed app updated; then retire the old MCP tool names once
+After the tag, merged for the next release: FD-337 (this Mac's launches offer exactly Switchboard's acts, End through `switchboard sessions end`, PR #692). This Mac runs 0.8.198 with 0.8.199 staged: its install waits while consoles run, and nothing here restarts them. Next task: retire the old MCP tool names once
 `caa7ec38` is answered; FD-335 and FD-325 when the screen is unlocked.
 
 ## Waves of 2026-11-18, state at 18:50 UTC (2026-11-18)
