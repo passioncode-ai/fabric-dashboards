@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.201 - 2026-11-18
+
+### Added
+- FD-331: Connect an agent on Overview: paste the invitation link an organization sent, confirm, and its agents appear.
+  An agent does the same with MCP `agent_connect`. Measured with 70 agents: the app's main process uses 0.79 % CPU
+  hidden, inside its budget (FD-338).
+
 ## 0.8.200 - 2026-11-18
 
 ### Added
