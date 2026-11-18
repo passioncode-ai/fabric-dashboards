@@ -13,7 +13,11 @@ import type { Descriptor, WellKnownResult } from './protocol';
 type Held = { descriptor: string; why: 'foreign' | 'not-protocol'; probe: WellKnownResult };
 
 const own = (d: Descriptor, p: WellKnownResult): boolean =>
-  p.kind === 'answer' && p.doc.service.id === d.id && p.doc.service.instance === d.instance;
+  (p.kind === 'answer' && p.doc.service.id === d.id && p.doc.service.instance === d.instance)
+  // FD-327: this service's own answer with a member missing keeps the token: it is the service, not following the contract.
+  || (p.kind === 'nonconforming' && p.service.id === d.id && p.service.instance === d.instance);
+/** Another service's answer, whole or not: the token is withheld for good. */
+const other = (d: Descriptor, p: WellKnownResult): boolean => (p.kind === 'answer' || p.kind === 'nonconforming') && !own(d, p);
 
 export class RemoteTokenLatch {
   private readonly held = new Map<string, Held>();
@@ -35,18 +39,18 @@ export class RemoteTokenLatch {
     if (held?.why === 'not-protocol') {
       const bare = await send(false);
       if (bare.kind !== 'refused' && !own(d, bare)) {
-        if (bare.kind === 'answer' || bare.kind === 'not-protocol') this.hold(key, d, bare);
+        if (other(d, bare) || bare.kind === 'not-protocol') this.hold(key, d, bare);
         return bare;
       }
       this.held.delete(key);
     }
     const probe = await send(true);
-    if ((probe.kind === 'answer' && !own(d, probe)) || probe.kind === 'not-protocol') this.hold(key, d, probe);
+    if (other(d, probe) || probe.kind === 'not-protocol') this.hold(key, d, probe);
     return probe;
   }
 
   private hold(key: string, d: Descriptor, probe: WellKnownResult): void {
-    this.held.set(key, { descriptor: JSON.stringify(d), why: probe.kind === 'answer' ? 'foreign' : 'not-protocol', probe });
+    this.held.set(key, { descriptor: JSON.stringify(d), why: probe.kind === 'not-protocol' ? 'not-protocol' : 'foreign', probe });
   }
 
   /** The latch for `d` as it is now; a changed descriptor is a new claim and starts clear. */

@@ -650,7 +650,7 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
     case 'stopped':
       return { ok: true, state: 'stopped', detail: `${d.name} stopped and stays off across logins` };
     case 'answered':
-      return { ok: true, state: (await serviceStatus(deps, key)).state, detail: `${d.name} answers as pid ${out.pid}` };
+      return { ok: true, state: (await serviceStatus(deps, key)).state, detail: out.pid === null ? `${d.name} answers` : `${d.name} answers as pid ${out.pid}` };
     case 'stray-holds':
       return { ok: false, state: (await serviceStatus(deps, key)).state, detail: `${d.name}: a stray copy (pid ${out.pid}) still holds port ${out.port}` };
     case 'still-answering':

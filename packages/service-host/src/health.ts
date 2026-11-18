@@ -145,6 +145,14 @@ function send(origin: string, method: 'GET' | 'POST', path: string, headers: Rec
   });
 }
 
+/** FD-327: the identity an answer that names `fabric-service/0.1` gives itself, or null. */
+export function identityOf(value: unknown): { id: string; instance: string } | null {
+  const d = value as Partial<WellKnown> | null;
+  if (!d || typeof d !== 'object' || d.protocol !== PROTOCOL || !d.service) return null;
+  const { id, instance } = d.service as { id?: unknown; instance?: unknown };
+  return typeof id === 'string' && typeof instance === 'string' ? { id, instance } : null;
+}
+
 /** The first thing that makes this not a `fabric-service/0.1` well-known document, or null. */
 export function checkWellKnown(value: unknown): string | null {
   const d = value as Partial<WellKnown> | null;
@@ -203,7 +211,12 @@ export async function fetchWellKnown(origin: string, timeoutMs = 2000, options: 
     return { kind: 'not-protocol', detail: 'the answer is not JSON' };
   }
   const problem = checkWellKnown(doc);
-  if (problem) return { kind: 'not-protocol', detail: problem };
+  if (problem) {
+    // FD-327: an answer that names the protocol and an identity is a service's own document even when a member is
+    // missing; the state says whose (state.ts), so an agent with no events feed is not «another program».
+    const named = identityOf(doc);
+    return named ? { kind: 'nonconforming', detail: problem, service: named } : { kind: 'not-protocol', detail: problem };
+  }
   // Scenario walk 2026-11-11 (SCN-068): an invalid `configuration` is treated as absent, never handed to a reader
   // that would draw it (an unchecked one blanked the window).
   const d = doc as WellKnown;

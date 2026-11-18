@@ -56,7 +56,8 @@ export type ControlOutcome =
   | { kind: 'refused'; why: 'placement-unreadable'; detail: string }
   | { kind: 'launchctl-failed'; detail: string }
   | { kind: 'stopped'; probe: WellKnownResult }
-  | { kind: 'answered'; probe: Extract<WellKnownResult, { kind: 'answer' }>; pid: number }
+  // FD-327: an agent whose answer misses a contract member still answers as itself; its pid may be unknown (null).
+  | { kind: 'answered'; probe: Extract<WellKnownResult, { kind: 'answer' | 'nonconforming' }>; pid: number | null }
   /** U-15: a restart of a duplicate where the stray copy kept the port: named by its pid. */
   | { kind: 'stray-holds'; pid: number; port: number }
   | { kind: 'still-answering' }
@@ -116,6 +117,8 @@ export async function controlService(
     } else if (probe.kind === 'answer' && probe.doc.service.id === d.id && probe.doc.service.instance === d.instance
       && (action !== 'restart' || probe.doc.process.pid !== seen.oldPid)) {
       return { kind: 'answered', probe, pid: probe.doc.process.pid };
+    } else if (probe.kind === 'nonconforming' && probe.service.id === d.id && probe.service.instance === d.instance) {
+      return { kind: 'answered', probe, pid: null };
     }
     await deps.sleep(deps.pollMs ?? 400);
   }
