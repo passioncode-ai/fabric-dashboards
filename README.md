@@ -112,11 +112,11 @@ claude mcp add --scope user fabric-dashboards -- "$APP/Contents/Resources/bin/fa
 claude mcp get fabric-dashboards        # Status: ✔ Connected
 ```
 
-One call that proves it works, from a real client:
+The server has two doors (FD-339): `search` finds its operations (`list_services`, `link`, `open`, `control` and the rest, each with its schema, gate and an example) and `execute` runs one by name. One call that proves it works, from a real client:
 
 ```bash
-claude -p "Call the fabric-dashboards list_services tool once and reply with only the number of services it returned." \
-  --allowedTools mcp__fabric-dashboards__list_services --max-turns 3
+claude -p "Call the fabric-dashboards execute tool once with operation list_services and reply with only the number of services it returned." \
+  --allowedTools mcp__fabric-dashboards__execute --max-turns 3
 ```
 
 The answer is the number of installed services (`0` until one is installed). Any other MCP
