@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.194 - 2026-11-18
+
+### Fixed
+- FD-320 (connections audit C2-08): an update is no longer downloaded onto a disk without room for it. The size the
+  release server announces is checked against the free space first (on macOS with room to unpack it too), and a disk
+  that fills up during the download is named with its free space. A failed save of `outage-alerts.json` keeps the last
+  saved file and its copy whole, says so once and tries again every minute.
+
 ## 0.8.193 - 2026-11-18
 
 ### Added

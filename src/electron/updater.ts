@@ -28,7 +28,7 @@ import { pathToFileURL } from 'node:url';
 import { FEED_FILE, PROOF_FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, proofFeedUrl, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, mayPeek, recheckWhileReady, stagedBundlePath, stagedRefusal, stagingLost, strayShipIt } from '../core/version';
 import type { AppStatus } from '../core/types';
-import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, unpackFailure, unpackRoomRefusal, updateChannel } from '../core/self-update';
+import { appImageRelaunchCommand, downloadRoomRefusal, downloadWriteFailure, freeBytesAt, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, unpackFailure, unpackRoomRefusal, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
 import { RetryOnce } from '../core/retry-once';
 import { powerShellAfterExit, spawnAfterExit } from '../core/after-exit';
@@ -71,9 +71,13 @@ function run(file: string, args: string[]): Promise<{ code: number; out: string 
 
 /** Stream a release file to `file` (0600), returning its sha256. A write error (a full disk, no permission)
  *  ends the wait for `drain` instead of hanging it; a failure removes nothing — the caller decides. */
-async function downloadTo(url: string, file: string, timeoutMs: number): Promise<string> {
+async function downloadTo(url: string, file: string, timeoutMs: number, unpack = false): Promise<string> {
   const res = await net.fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok || !res.body) throw new Error(`${path.basename(file)} answered HTTP ${res.status}`);
+  // FD-320: the size the server announces is checked against the free space before the file is opened.
+  const announced = Number(res.headers.get('content-length'));
+  const room = downloadRoomRefusal(Number.isFinite(announced) && announced > 0 ? announced : null, freeBytesAt(path.dirname(file)), unpack);
+  if (room) { void res.body.cancel().catch(() => undefined); throw new Error(room); }
   const hash = createHash('sha256');
   const out = fs.createWriteStream(file, { mode: 0o600 });
   let failed: Error | null = null;
@@ -93,7 +97,7 @@ async function downloadTo(url: string, file: string, timeoutMs: number): Promise
   } catch (error) {
     void reader.cancel().catch(() => undefined);
     out.destroy();
-    throw error;
+    throw new Error(downloadWriteFailure(error as Error, path.basename(file), freeBytesAt(path.dirname(file))));
   }
   return hash.digest('hex');
 }
@@ -369,13 +373,13 @@ export class Updater {
       const zip = path.join(dir, zipName(version));
       let actual: string;
       try {
-        actual = await downloadTo(releaseFile(version, zipName(version)), zip, DOWNLOAD_TIMEOUT_MS);
+        actual = await downloadTo(releaseFile(version, zipName(version)), zip, DOWNLOAD_TIMEOUT_MS, true);
       } catch (error) {
         return { code: 'download_failed', error: (error as Error).message };
       }
       if (actual !== expected) return { code: 'signature_failed', error: `${zipName(version)} has sha256 ${actual}, SHA256SUMS says ${expected}` };
       // FD-79: a full disk is named as such, before and after unpacking; the tool's own words are kept.
-      const free = () => { try { const s = fs.statfsSync(dir); return s.bavail * s.bsize; } catch { return null; } };
+      const free = () => freeBytesAt(dir);
       const room = unpackRoomRefusal(fs.statSync(zip).size, free());
       if (room) return { code: 'download_failed', error: room };
       const unpacked = await run('/usr/bin/ditto', ['-x', '-k', zip, path.join(dir, 'app')]);
