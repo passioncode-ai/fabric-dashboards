@@ -94,11 +94,18 @@ export class OrganizationStore {
     return this.keep(await this.withSwitchboard(next));
   }
 
-  /** FD-248 (step 6): Switchboard's organizations join the map; a Switchboard that does not answer changes nothing. */
+  /** FD-248 (step 6): Switchboard's organizations join the map. FD-315 (C2-05): a read that fails (readSwitchboard
+   *  throws) keeps the ones it named last time; no Switchboard (null) names none. */
   private async withSwitchboard(next: OrganizationsCache): Promise<OrganizationsCache> {
     let answer: string | null = null;
-    try { answer = (await this.o.readSwitchboard?.()) ?? null; } catch { answer = null; }
+    let failed = false;
+    try { answer = (await this.o.readSwitchboard?.()) ?? null; } catch { failed = true; }
     if (answer) addSwitchboardOrganizations(next, parseSwitchboardOrganizations(answer));
+    else if (failed) {
+      const prev = this.cache;
+      const labels = (prev.fromSwitchboard ?? []).map((base) => prev.organizations[base]).filter((l): l is string => typeof l === 'string' && l.length > 0);
+      if (labels.length) addSwitchboardOrganizations(next, labels);
+    }
     return next;
   }
 

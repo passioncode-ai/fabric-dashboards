@@ -283,7 +283,7 @@ export interface MergeInput {
   remote?: { machine: string; rows: SbSessionRecord[]; page?: SbPageRow[] }[];
 }
 
-export type SessionSource = 'sessions' | 'handovers' | 'recovery' | 'machine';
+export type SessionSource = 'sessions' | 'handovers' | 'recovery' | 'machine' | 'attention';
 /** A source that did not answer: its last good answer is still used, and the list says it may be out of date. */
 export interface SourceDegraded { source: SessionSource; reason: 'old' | 'error'; detail: string; since: number }
 

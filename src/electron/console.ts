@@ -151,6 +151,8 @@ export const CAPACITY_KEEP_MS = 10 * 60_000;
 export const ACTED_KEEP_MS = 24 * 60 * 60_000;
 /** FD-316: how long a history read serves passes with no ready stop, for the same open launches. */
 export const MOVED_ON_FRESH_MS = 5 * 60_000;
+/** FD-315: when a catalog whose Switchboard agents list got no answer in time is read again. */
+export const CATALOG_RETRY_MS = 10 * 60_000;
 export const BINDING_FRESH_MS = 30_000;
 /** Wave 4 (P-08): how long one `switchboard capacity` answer serves the machine checks of one pass. */
 const CAPACITY_FRESH_MS = 10_000;
@@ -164,6 +166,7 @@ export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
   private catalog: Promise<Runtime[]> | null = null;
+  private catalogPartialUntil: number | null = null;
   /** FD-236: whether this Switchboard's `handovers run` takes `--ask`, by its path and modification time. */
   private handoverAskFor: { key: string; value: boolean } | null = null;
   private inPlaceFor: { key: string; sb: string; value: { inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean } } | null = null;
@@ -231,6 +234,7 @@ export class ConsoleHost {
   /** FD-277: sessions running twice, from `attention`; read at most every DUPLICATES_MS while the Sessions mode is on screen. */
   private duplicates: DuplicateSession[] = [];
   private duplicatesAt = -Infinity;
+  private attentionDegraded: SourceDegraded | null = null;
   /** FD-277: whether the Switchboard last looked at closes copies, by its path. */
   private closeCopyOf: { switchboard: string; takes: boolean } | null = null; // keyed by switchboardStamp (FD-305)
   /** FD-231: until when a Switchboard without `sessions --machine` is not asked again (it updates itself). */
@@ -368,11 +372,15 @@ export class ConsoleHost {
   private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean; dirs: string[] }> {
     const dirs = await this.searchPath();
     const switchboard = findSwitchboard(dirs);
+    // FD-315 (C2-05): a catalog read whose `agents list` got no answer in time is read again 10 minutes later, not kept for
+    // the whole run without Switchboard's own agents.
+    if (this.catalog && this.catalogPartialUntil !== null && Date.now() >= this.catalogPartialUntil) { this.catalog = null; this.catalogPartialUntil = null; }
     if (!this.catalog) {
       this.catalog = (async () => {
         let extra: RuntimeSpec[] = [];
         if (switchboard) {
           const r = await this.run(switchboard, ['--json', 'agents', 'list'], 10_000);
+          if (noAnswer(r)) this.catalogPartialUntil = Date.now() + CATALOG_RETRY_MS;
           try { extra = specsFromSwitchboard(JSON.parse(r.stdout)); } catch { extra = []; }
         }
         const runtimes = detectRuntimes(dirs, [...KNOWN_RUNTIMES, ...extra]);
@@ -1372,8 +1380,11 @@ export class ConsoleHost {
     if (!this.closeCopyOf.takes) return;
     const r = await this.run(sb, ['--json', 'attention'], 15_000).catch(() => null);
     const read = r && r.code === 0 ? parseDuplicates(r.stdout) : null;
-    if (!read) return;
-    if (JSON.stringify(read) !== JSON.stringify(this.duplicates)) { this.duplicates = read; this.pushSessions(); }
+    // FD-315 (C2-05): a failed read keeps the last list and says the source is not answering, as the other reads do.
+    const was = this.attentionDegraded;
+    this.attentionDegraded = read ? null : degradedSince(was, 'attention', r && isOldSwitchboard(`${r.stdout}\n${r.stderr}`) ? 'old' : 'error', (r?.stderr || 'no answer').slice(0, 300), now);
+    if (!read) { if (!was) this.pushSessions(); return; }
+    if (was || JSON.stringify(read) !== JSON.stringify(this.duplicates)) { this.duplicates = read; this.pushSessions(); }
   }
 
   /** FD-277: Close the quiet copy, for a session the list shows running twice; Switchboard picks the copy. */
@@ -1449,7 +1460,7 @@ export class ConsoleHost {
     for (const r of rows) if (r.group === 'ended' && r.actions.includes('continue') && r.folder && !elsewhere(r) && !isDir(r.folder)) { r.actions = r.actions.filter((a) => a !== 'continue'); r.reason ??= 'no-folder'; }
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
-    const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handovers.degraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
+    const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handovers.degraded, this.recoveryDegraded, this.attentionDegraded].filter((d): d is SourceDegraded => d !== null);
     return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, handovers: { enabled: this.handovers.enabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
   }
 
