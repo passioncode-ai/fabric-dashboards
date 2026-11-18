@@ -148,3 +148,21 @@ test('FD-226: a failing part reads as one sentence: its name, then the agent\'s 
   assert.equal(t('en', 'audit.connection.degraded.bare', { name: 'demo' }), 'demo works only in part.');
   assert.equal(t('ru', 'audit.connection.down.bare', { name: 'demo' }), 'demo не работает.');
 });
+
+// FD-324 (contract DEC-0183 SL-5): an agent that spends money and reports no emergency stop is worth knowing.
+test('FD-324: a spending agent without an emergency stop is an info finding; one with it, or that spends nothing, is not', async () => {
+  const { spendingWithoutEmergency } = await import('../src/core/spend');
+  const sum = (costUsd: number | null) => ({ costUsd }) as never;
+  const report = (key: string, costUsd: number | null, kinds: string[]) => ({ key, kind: 'report' as const, summary: { month: sum(costUsd), limits: kinds.map((kind, i) => ({ id: `l${i}`, kind })) } as never });
+  const keys = spendingWithoutEmergency([
+    report('spends.default', 3.2, ['daily']),
+    report('guarded.default', 3.2, ['daily', 'emergency']),
+    report('free.default', 0, []),
+    report('unknown.default', null, []),
+    { key: 'error.default', kind: 'error', error: 'x' } as never,
+  ]);
+  assert.deepEqual(keys, ['spends.default']);
+  const a = audit([svc('spends.default', 'ready'), svc('guarded.default', 'ready')], {}, keys);
+  assert.deepEqual(a.findings.map((f) => [f.severity, f.key, f.kind, f.reason.code]), [['info', 'spends.default', 'limit', 'audit.limit.noEmergency']]);
+  assert.equal(t('ru', 'audit.limit.noEmergency'), 'Тратит деньги, но не сообщает об аварийном стопе (500 USD в сутки, 1000 USD в месяц).');
+});
