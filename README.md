@@ -33,7 +33,7 @@ Screenshots of the real app against the kit's sample service under example names
 | **Spend** | what every agent spent today, in 7 and 30 days, on which models and against its own budget — from each agent's own usage report (contract DEC-0021); an unknown cost reads unknown, never $0 |
 | **Notifications** | not answering (three missed probes in a row and 60 s of silence — a slow answer under load is not an outage, [ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)), back, two copies, another program on the port, and, from the events a service marks for you, only a decision it waits for, a failure or a warning — once per subject, titled with the agent and what it wants ([ADR-0010](docs/adr/0010-notifications-only-when-it-matters.md)); quiet hours and per-service levels |
 | **Menu bar** | the aggregate state as a shape, problems first |
-| **Links from agents and Fabric** | `fabric-dashboards://service/<id.instance>?path=/…` opens that service, or that page of it, here, signed in — the link Fabric's "Open dashboard" opens |
+| **Links from agents and Fabric** | `fabric-dashboards://service/<id.instance>?path=/…` opens that service, or that page of it, here, signed in: the link Fabric's "Open dashboard" opens; `fabric-dashboards://register?origin=https://<showcase>&invite=<code>` adds the agents an organization's showcase grants you, after you confirm (FD-193, SCN-121) |
 | **MCP for agents** | list services, hand out links, open a page, restart or update — through the app's own rules |
 
 States it tells apart: Ready, Partly working, Not answering, Stopped, Starting/Stopping, Two copies

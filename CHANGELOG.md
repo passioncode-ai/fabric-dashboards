@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.195 - 2026-11-18
+
+### Added
+- FD-193 (SCN-121): a member of an organization adds the agents they hold a grant to from one link,
+  `fabric-dashboards://register?origin=https://<showcase>&invite=<code>`, without Tailscale and without setting up a
+  descriptor or a token by hand. After the person confirms, the app redeems the one-time invitation for a token of this
+  computer, keeps it in a 0600 file beside the descriptors, and adds the organization's showcase and each agent its
+  grant names. The token goes only to addresses under the showcase's own domain; an agent already installed for another
+  address is kept.
+
 ## 0.8.194 - 2026-11-18
 
 ### Fixed

@@ -126,6 +126,7 @@
 | SCN-118 | Close the quiet copy of a session that runs twice | sessions | P-01 | ST-019 | implemented | 2026-11-16 |
 | SCN-119 | Start a new dashboard from the agent list | console | P-01 | ST-019, ST-022 | implemented | 2026-11-17 |
 | SCN-120 | See an agent's own health report on its Health tab | health | P-01 | ST-004 | implemented | 2026-11-17 |
+| SCN-121 | Register an organization's agents from a link | navigation | P-01 | ST-016 | implemented | 2026-11-18 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2712,4 +2713,29 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "What the agent reports is wrong with it now, read every 5 minutes. Two bad readings in a row reach your notification channel." / «Что агент сообщает о своих неполадках сейчас; отчёт читается каждые 5 минут. Два плохих чтения подряд уходят в ваш канал уведомлений.»
 - **Status:** implemented (2026-11-17, 0.8.177: `test/machine-view.test.ts` *FD-298*; copy check reports `ecbecc50`, `bb146115`, `35682b6f`, `61827eb8`, no findings)
 - **Coverage:** src/renderer/components/HealthReport.tsx (HealthEntry), src/renderer/components/ServiceView.tsx (Health), src/renderer/App.tsx (health prop), src/renderer/components/MachinePage.tsx
+- **Product:** unobserved
+
+### SCN-121: Register an organization's agents from a link
+- **Persona:** P-01
+- **Feature:** navigation
+- **Traces:** ST-016; FD-193 (board `fe7e0379` item 9, thread `71e5d19d`); studio-agent DEC-0075, its `docs/design/showcase.md` §4
+- **Entry point:** a `fabric-dashboards://register?origin=https://<showcase>&invite=<code>` link the organization's assistant gives the person (in Telegram, after it checked who they are)
+- **Preconditions:** the organization runs a showcase of its agents (an online service) and gave this person a grant to some of them; the invitation is a host invitation, one-time, not expired
+- **Steps:**
+  1. The person opens the link -> the app comes forward and asks "Add the agents of <host> to this computer?" with what the link does and that they add them only if they expected it; Add agents and Cancel
+  2. The person chooses Add agents -> the app redeems the invitation for a token of this computer, keeps the token beside the descriptors and writes one agent for the showcase and one for each agent address the showcase names for this person
+  3. The registration ends -> "Agents added from <host>: N" (and "Not added: M. The log says why." when some address was refused), then the overview, where the agents appear at the next scan and open signed in like any online agent
+- **Expected result:** a member sees exactly the agents their grant names, without Tailscale and without setting up a descriptor or a token by hand
+- **Alt paths:** Cancel -> nothing is written and the invitation stays unused; the showcase names an address outside its own domain -> that address is skipped and never sent the token; an agent with the same name is installed for another address -> it is kept, that one is skipped; a second link while one registers -> logged only
+- **UI elements:** the confirmation, the result message
+- **States covered:** success, partial, error
+- **Errors & recovery:** an invitation that is wrong, expired or used -> "The invitation is wrong, expired or already used. Ask for a new link."; a browser invitation -> "This invitation is for a browser. Ask for a link for Fabric Dashboards."; no answer -> "The site does not answer. Check your connection and open the link again." (the invitation is still unused); an answer the app cannot read -> "Write to whoever sent the link."; the invitation accepted but no address registered -> the token is kept and the message says to write to whoever sent the link; a link with another parameter, a path or an origin that is not `https://<dns-name>` -> the link is refused as any bad link is (SCN-027); access the organization later removes -> its agents read "no access" (HTTP 401)
+- **Copy:**
+  - "Add the agents of {host} to this computer?" / «Добавить агентов {host} на этот компьютер?»
+  - "The link carries a one-time invitation from {host}. Dashboards lists the agents you have access to there. Add them only if you expected this invitation." / «В ссылке одноразовое приглашение от {host}. Fabric Dashboards покажет агентов, к которым у вас там есть доступ. Добавляйте, только если ждали это приглашение.»
+  - "Add agents" / «Добавить агентов»
+  - "Agents added from {host}: {count}" / «Добавлено агентов с {host}: {count}»
+  - "The agents of {host} were not added" / «Агенты {host} не добавлены»
+- **Status:** implemented (2026-11-18, 0.8.195: `test/register.test.ts` *FD-193*; copy check reports `8eb34470` to `d0686b68`, 22 strings, and `c1df4c52`, `849f59a2` for the title as worded now, no findings)
+- **Coverage:** src/core/register.ts, src/core/deeplink.ts (register), src/electron/register-flow.ts, src/electron/main.ts (handleLink)
 - **Product:** unobserved
