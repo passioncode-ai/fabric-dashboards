@@ -170,7 +170,8 @@ A remote placement (DEC-0019) has no launchd and no `duplicate`: `refused`, TLS 
    while placed there is in step 5 a `duplicate` (`reason.duplicate.elsewhere`, the machine) when this
    machine's own launchd job runs it, and otherwise the placed copy reached through a forward of its port
    (an SSH tunnel): its own status with `reason.reached.elsewhere` (the machine) last (FD-179); a host that
-   does not supervise the service cannot tell, and reads it as `duplicate`; when the record names the
+   does not supervise the service cannot tell, and reads it as `duplicate`, unless the placement record names
+   the forward that brings its port here, which makes it the placed copy reached (FD-340, 0.11.1); when the record names the
    forward that should bring the port here, the `stopped` reason carries it as `forward` (FD-196);
 8. silence and launchd disabled or not loaded → `stopped` (`reason.stopped` / `reason.not-loaded`);
 9. silence shorter than `DOWN_AFTER_MS` (15 s) → `starting` (`reason.waiting`), else `down`
