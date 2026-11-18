@@ -69,7 +69,7 @@ Waves 2 to 7 change no behaviour a person or agent can see, except wave 5's re-p
 - **D-5 (wave 7).** `ConsoleHost` is not split into collaborators in this run. Its regions share about 40 mutable
   collections, and quit reads the same stop-claim state as limit recovery, so a collaborator now would take the whole
   host as its argument and move no coupling. The hand-overs' state moved out first (`HandoverBook`); the stop-claim state
-  is next, then the split (FD-310).
+  followed in 0.8.196 (`StopClaims`), then the split (FD-310).
 
 ## Running alongside
 
