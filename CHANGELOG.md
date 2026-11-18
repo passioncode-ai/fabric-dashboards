@@ -1,6 +1,15 @@
 # Changelog
 
+## 0.8.204 - 2026-11-18
+
+### Fixed
+- The release's package check on Windows and Linux, and two end-to-end tests, still called the MCP server by an old tool
+  name that 0.8.203 retired; they call `execute` now. No change to the app itself.
+
 ## 0.8.203 - 2026-11-18
+
+Not published: its package check on Windows and Linux called `list_services` by the old name it retired (FD-339);
+these changes ship in 0.8.204.
 
 ### Changed
 - FD-337: Switchboard owns sessions. A session of this Mac that Switchboard's sessions page lists offers exactly the

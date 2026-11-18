@@ -1,7 +1,7 @@
 // End to end, FD-02: SCN-028's administration half walked on the built MCP server (out/main/mcp/server.js, as
 // the packaged launcher runs it): doctor runs the declared command and returns its output, control refuses a
 // service with no launchd lifecycle, spend returns the agent's own report, and an unknown tool is a JSON-RPC error.
-// (list_services, link and activity are walked in app.test.ts.)
+// (list_services, link and activity are walked in app.test.ts.) FD-339: operations go through `execute`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -27,9 +27,9 @@ test('SCN-028: an agent runs doctor, is refused control without launchd, reads s
     const token = fs.readFileSync(path.join(data, 'service.token'), 'utf8').trim();
     const calls = [
       '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}',
-      '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"doctor","arguments":{"service":"sample.default"}}}',
-      '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"control","arguments":{"service":"sample.default","action":"restart"}}}',
-      '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"spend","arguments":{}}}',
+      '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"operation":"doctor","arguments":{"service":"sample.default"}}}}',
+      '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute","arguments":{"operation":"control","arguments":{"service":"sample.default","action":"restart"},"idempotencyKey":"e2e-control-1"}}}',
+      '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"execute","arguments":{"operation":"spend","arguments":{}}}}',
       '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"no_such_tool","arguments":{}}}',
       '',
     ];
