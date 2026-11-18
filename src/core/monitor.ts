@@ -563,7 +563,7 @@ export class Monitor extends EventEmitter {
     }
     if (snap.state === 'foreign') {
       this.appEvent(t.entry.key, t, 'service.foreign', 'warning', 'app.event.foreign');
-      this.notify({ kind: 'foreign', serviceKey: t.entry.key }, t, 'notify.foreign.title', snap.reasons[0]?.code ?? 'reason.foreign.protocol', snap.reasons[0]?.params ?? {});
+      this.notify({ kind: 'foreign', serviceKey: t.entry.key }, t, snap.reasons[0]?.code === 'reason.foreign.sibling' ? 'notify.foreignSibling.title' : 'notify.foreign.title', snap.reasons[0]?.code ?? 'reason.foreign.protocol', snap.reasons[0]?.params ?? {});
     }
     if (snap.state === 'foreign-user') {
       this.appEvent(t.entry.key, t, 'service.foreign-user', 'warning', 'app.event.foreignUser');
@@ -771,11 +771,11 @@ export class Monitor extends EventEmitter {
         t.firstUnansweredAt = null;
         t.lastAnswerAt = this.now();
         t.misses = 0;
-        t.lastAnswer = out.probe;
+        t.lastAnswer = out.probe.kind === 'answer' ? out.probe : null;
         t.downNotified = false;
-        t.lastPid = out.pid;
+        if (out.pid !== null) t.lastPid = out.pid;
         if (action === 'restart') this.emit('restarted', key); // its page's session may be gone: the page offers Reload
-        return finish(true, { code: action === 'restart' ? 'result.restarted' : 'result.started', params: { name, pid: out.pid } });
+        return finish(true, { code: action === 'restart' ? 'result.restarted' : 'result.started', params: { name, pid: out.pid ?? '?' } });
       case 'stray-holds':
         return finish(false, { code: 'result.strayHolds', params: { name, pid: out.pid, port: out.port } });
       case 'still-answering':

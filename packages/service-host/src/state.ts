@@ -47,12 +47,15 @@ export function deriveState(i: StateInput): StateOutput {
   // FD-158, DEC-0154 HA-2: a listener of another OS account, or one whose owner cannot be told, wins over whatever it
   // answers, its own id included, and over its silence; its answer is never shown as this agent's. A port nobody holds
   // (a refused connection) stays `down` below.
-  if (i.foreignUser && (probe?.kind === 'answer' || probe?.kind === 'not-protocol' || probe?.kind === 'refused' || heldButSilent(probe))) {
+  if (i.foreignUser && (probe?.kind === 'answer' || probe?.kind === 'not-protocol' || probe?.kind === 'nonconforming' || probe?.kind === 'refused' || heldButSilent(probe))) {
     return { state: 'foreign-user', reasons: [{ code: i.foreignUser === 'unknown' ? 'reason.foreign.unknown' : 'reason.foreign.user', params: { port: portNum(d.origin) } }] };
   }
   if (probe?.kind === 'answer') {
     const svc = probe.doc.service;
     if (svc.id !== d.id || svc.instance !== d.instance) {
+      // FD-329: the same agent under another instance (an organization's copy through a tunnel that still calls itself
+      // `default`): no token, but said as what it is, so the fix goes to that copy's name.
+      if (svc.id === d.id) return { state: 'foreign', reasons: [{ code: 'reason.foreign.sibling', params: { port: portNum(d.origin), answer: `${svc.id}.${svc.instance}` } }] };
       return { state: 'foreign', reasons: [{ code: 'reason.foreign.other', params: { port: portNum(d.origin), answer: `${svc.id}.${svc.instance}` } }] };
     }
     if (away) {
@@ -70,6 +73,12 @@ export function deriveState(i: StateInput): StateOutput {
       return { state: 'duplicate', reasons: [{ code: 'reason.duplicate', params: { answering: probe.doc.process.pid, launchd: i.launchd.pid } }] };
     }
     return fromWellKnown(probe.doc);
+  }
+  if (probe?.kind === 'nonconforming') {
+    if (probe.service.id !== d.id || probe.service.instance !== d.instance) {
+      return { state: 'foreign', reasons: [{ code: 'reason.foreign.other', params: { port: portNum(d.origin), answer: `${probe.service.id}.${probe.service.instance}` } }] };
+    }
+    return { state: 'degraded', reasons: [{ code: 'reason.wellKnown.nonconforming', params: { detail: probe.detail } }] };
   }
   if (probe?.kind === 'not-protocol') {
     return { state: 'foreign', reasons: [{ code: 'reason.foreign.protocol', params: { port: portNum(d.origin), detail: probe.detail } }] };
@@ -115,6 +124,12 @@ function remoteState(d: Descriptor, probe: WellKnownResult | null, i: StateInput
       return { state: 'foreign', reasons: [{ code: 'reason.remote.foreign', params: { origin: d.origin, answer: `${svc.id}.${svc.instance}` } }] };
     }
     return fromWellKnown(probe.doc);
+  }
+  if (probe?.kind === 'nonconforming') {
+    if (probe.service.id !== d.id || probe.service.instance !== d.instance) {
+      return { state: 'foreign', reasons: [{ code: 'reason.remote.foreign', params: { origin: d.origin, answer: `${probe.service.id}.${probe.service.instance}` } }] };
+    }
+    return { state: 'degraded', reasons: [{ code: 'reason.wellKnown.nonconforming', params: { detail: probe.detail } }] };
   }
   if (probe?.kind === 'not-protocol') {
     return { state: 'foreign', reasons: [{ code: 'reason.remote.protocol', params: { origin: d.origin, detail: probe.detail } }] };

@@ -32,3 +32,20 @@ test('another service answering keeps its verdict with no request until the desc
   await latch.probe({ ...d, origin: 'https://new.example.com' } as Descriptor, s.send);
   assert.deepEqual(s.calls, [true, true]);
 });
+
+test('FD-327: the service\'s own incomplete answer keeps the token; another service\'s holds it back', async () => {
+  const latch = new RemoteTokenLatch();
+  const mine: WellKnownResult = { kind: 'nonconforming', detail: 'surfaces.events is missing', service: { id: 'agent', instance: 'default' } };
+  const s = sender([mine, mine]);
+  assert.equal((await latch.probe(d, s.send)).kind, 'nonconforming');
+  assert.equal(latch.withheld(d), null);
+  await latch.probe(d, s.send);
+  assert.deepEqual(s.calls, [true, true]);
+  const theirs: WellKnownResult = { kind: 'nonconforming', detail: 'degraded is missing', service: { id: 'other', instance: 'default' } };
+  const t = sender([theirs]);
+  const other = new RemoteTokenLatch();
+  await other.probe(d, t.send);
+  assert.equal(other.withheld(d), 'foreign');
+  assert.equal((await other.probe(d, t.send)).kind, 'nonconforming');
+  assert.deepEqual(t.calls, [true]);
+});

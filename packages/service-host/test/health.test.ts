@@ -50,7 +50,10 @@ test('fetchWellKnown: an answer, another program, garbage, silence', async () =>
     reply = { status: 200, body: '<html>' };
     assert.deepEqual(await fetchWellKnown(s.origin), { kind: 'not-protocol', detail: 'the answer is not JSON' });
     reply = { status: 200, body: JSON.stringify({ ...WELL_KNOWN, degraded: undefined }) };
-    assert.deepEqual(await fetchWellKnown(s.origin), { kind: 'not-protocol', detail: 'degraded is missing' });
+    // FD-327: its own identity with a member missing is the service not following the contract, not another program.
+    assert.deepEqual(await fetchWellKnown(s.origin), { kind: 'nonconforming', detail: 'degraded is missing', service: { id: WELL_KNOWN.service.id, instance: WELL_KNOWN.service.instance } });
+    reply = { status: 200, body: JSON.stringify({ ...WELL_KNOWN, service: undefined }) };
+    assert.deepEqual(await fetchWellKnown(s.origin), { kind: 'not-protocol', detail: 'service identity is missing' });
   } finally {
     await s.close();
   }

@@ -62,6 +62,9 @@ export interface WellKnown {
 export type WellKnownResult =
   | { kind: 'answer'; doc: WellKnown; ms: number }
   | { kind: 'not-protocol'; detail: string } // something answers, but not fabric-service
+  // FD-327: the answer names fabric-service/0.1 and an identity, but a required member is missing or invalid. Who it is
+  // (`service`) decides the state: this agent not following the contract (degraded), or another program (foreign).
+  | { kind: 'nonconforming'; detail: string; service: { id: string; instance: string } }
   | { kind: 'refused'; detail: string } // DEC-0019: a remote service refused the token (401); a local program refused this host (401, 403) — nothing disclosed
   | { kind: 'no-answer'; detail: string; cause?: 'tls' | 'redirect' | 'timeout' | 'network' | 'http' };
 
@@ -92,7 +95,7 @@ export interface Reason {
 /** Every reason code deriveState can return; a host's message catalogue covers each one. */
 export const REASON_CODES = [
   'reason.invalid', 'reason.conflict.port', 'reason.conflict.key', 'reason.foreign.other', 'reason.foreign.protocol',
-  'reason.duplicate', 'reason.degraded', 'reason.setup', 'reason.stopped', 'reason.not-loaded', 'reason.waiting', 'reason.down',
+  'reason.duplicate', 'reason.degraded', 'reason.wellKnown.nonconforming', 'reason.foreign.sibling', 'reason.setup', 'reason.stopped', 'reason.not-loaded', 'reason.waiting', 'reason.down',
   // FD-132 — placed on another machine (observatory-placement/1)
   'reason.elsewhere', 'reason.duplicate.elsewhere',
   // FD-179 — placed on another machine and reached here through a forward of its port (an SSH tunnel)
