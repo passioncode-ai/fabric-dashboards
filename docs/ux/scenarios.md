@@ -2421,13 +2421,13 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 ### SCN-106: Give an agent's dashboard or console the whole window
 - **Persona:** P-01
 - **Feature:** layout
-- **Traces:** ST-002, ST-019; FD-220; the operator, 2026-11-13, this repository's session `a1bc2cc0`: «сделать возможность скрыть агентов слева и шапку дашборда чтобы он был на весь экран, консоль агента открывать на весь экран как окно агента а не попап»
+- **Traces:** ST-002, ST-019; FD-220, FD-333 (the operator, 2026-11-18: «как в фабрике, скорее, он открывается на весь экран»); the operator, 2026-11-13, this repository's session `a1bc2cc0`: «сделать возможность скрыть агентов слева и шапку дашборда чтобы он был на весь экран, консоль агента открывать на весь экран как окно агента а не попап»
 - **Entry point:** an agent's page: the header's Fill the window button, View → Dashboard Fills the Window (Ctrl+Cmd+M; Ctrl+Shift+M elsewhere); the console's own button
 - **Preconditions:** none
 - **Steps:**
   1. The person presses Fill the window -> the agent list, the strip of open agents and the agent's header step aside; the dashboard keeps its own toolbar (back, forward, reload, home, address), which now moves the window and also holds the console and Show the agent list and header
   2. The person presses Show the agent list and header, the menu item again, or Esc while the window's page has the keyboard -> everything comes back; the choice is remembered across launches
-  3. The person opens an agent's console -> it fills the area under the agent's header, as the agent's own window, with its controls at the top and no edge to drag
+  3. The person opens an agent's console -> it fills the whole window as Fabric's and Inbox's terminals do (FD-333): the agent list, the strip of open agents and the agent's header step aside, the dashboard's thin toolbar stays above it with the console button, and the console keeps its controls at the top and no edge to drag; pressing the console button or Esc while the window's page has the keyboard closes it and brings everything back
   4. The person presses Show the console as a panel -> it becomes the drawer over the dashboard, with its edge, as before; the choice is remembered, and Fill the window with the console brings it back
 - **Expected result:** a dashboard or a console that needs the room gets all of it, with one press back
 - **Alt paths:** a tab other than the dashboard keeps the header while the list is hidden, with the same button to bring it back; a session's page keeps its console as the page (SCN-080); the console opens under the dashboard's toolbar, never over it, and while the dashboard is opening, failed or declares none a bar with the agent's name keeps the console and the way back (FD-224)
@@ -2436,8 +2436,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Errors & recovery:** none
 - **Copy:**
   - "Dashboard Fills the Window" / «Дашборд на всё окно» (menu); "Fill the window with the dashboard" / «Развернуть дашборд на всё окно»; "Show the agent list and header" / «Вернуть список агентов и шапку»; "Fill the window with the console" / «Развернуть консоль на всё окно»; "Show the console as a panel" / «Показать консоль панелью»
-- **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*, `test/sidebar-manage.test.ts` *FD-121*; copy check reports `ce1de9a2`, `9345d320`, `930f80b3`, `ef799040` (en), `171b2822` (en), `5f5e84d3`, `99e6dbb4`, `cefe7e10`, `8019ef48`, `ea4d0c61` (ru), no findings; seen on the built app: the filled dashboard, the console filling the area)
-- **Coverage:** src/renderer/App.tsx (focus, DashChromeContext, the drawer's `expand`), src/renderer/components/ServiceView.tsx (header and toolbar buttons), src/renderer/DrawerApp.tsx, src/renderer/components/ConsolePanel.tsx (expand), src/electron/drawer.ts, src/electron/main.ts (menu, layoutCommand), src/core/platform.ts (menuKeys.focus), src/renderer/styles/app.css (.app.focus)
+- **Status:** implemented (2026-11-18, FD-333: `test/parts.test.ts` *FD-333* (`windowFill`); 2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*, `test/sidebar-manage.test.ts` *FD-121*; copy check reports `ce1de9a2`, `9345d320`, `930f80b3`, `ef799040` (en), `171b2822` (en), `5f5e84d3`, `99e6dbb4`, `cefe7e10`, `8019ef48`, `ea4d0c61` (ru), no findings; seen on the built app: the filled dashboard, the console filling the area)
+- **Coverage:** src/core/focus.ts (windowFill), src/renderer/App.tsx (focus, DashChromeContext, the drawer's `expand`), src/renderer/components/ServiceView.tsx (header and toolbar buttons), src/renderer/DrawerApp.tsx, src/renderer/components/ConsolePanel.tsx (expand), src/electron/drawer.ts, src/electron/main.ts (menu, layoutCommand), src/core/platform.ts (menuKeys.focus), src/renderer/styles/app.css (.app.focus)
 - **Product:** unobserved
 
 ### SCN-107: Give an agent a task from the top of its page

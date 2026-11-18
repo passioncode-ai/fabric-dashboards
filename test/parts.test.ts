@@ -11,6 +11,7 @@ import { merge, SettingsStore } from '../src/core/settings';
 import { DEFAULT_SETTINGS, type Settings } from '../src/core/types';
 import { clampRect, dashboardPathOf, loadErrorText, navigation, partitionFor, resolveLink, routeLink } from '../src/electron/policy';
 import { tmp } from './helpers';
+import { windowFill } from '../src/core/focus';
 
 test('navigation stays on the service origin; web links leave only through the browser', () => {
   const o = 'http://127.0.0.1:47195';
@@ -516,4 +517,13 @@ test('FD-224: while the dashboard fills the window the console starts under the 
   assert.match(app, /new MutationObserver/, 'and so does the bar changing under it');
   const css = fs.readFileSync(path.join(root, 'src/renderer/styles/app.css'), 'utf8');
   assert.match(css, /\[data-os='mac'\] \.app\.focus \.svc-bar, \[data-os='mac'\] \.app\.focus \.instances \{ padding-left: 84px; \}/);
+});
+
+test('FD-333: an agent console shown in full fills the window and is left by closing it; the dashboard focus keeps its own way back', () => {
+  const base = { onAgent: true, consoleOpen: true, consoleFull: true, dashboardFocus: false };
+  assert.deepEqual(windowFill(base), { fills: true, focus: true });
+  assert.deepEqual(windowFill({ ...base, consoleFull: false }), { fills: false, focus: false }, 'a console kept as a panel leaves the agent list and header');
+  assert.deepEqual(windowFill({ ...base, consoleOpen: false }), { fills: false, focus: false });
+  assert.deepEqual(windowFill({ ...base, dashboardFocus: true }), { fills: false, focus: true }, 'the person filled the window with the dashboard: the shrink button stays');
+  assert.deepEqual(windowFill({ ...base, onAgent: false }), { fills: false, focus: false }, 'only an agent page fills the window');
 });

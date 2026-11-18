@@ -28,7 +28,8 @@ type Tab = 'dashboard' | 'activity' | 'connections' | 'load' | 'health' | 'logs'
 
 /** FD-220: what the dashboard's toolbar offers when the page around it can step aside: fill the window (no agent list,
  *  no page header) and back, and the console, which the hidden header no longer offers. */
-export interface DashChrome { focus: boolean; toggleFocus: () => void; consoleOpen: boolean; toggleConsole: () => void }
+/** FD-333: `fills`, the window is filled by the agent's console (not by the person's choice to fill it with the dashboard). */
+export interface DashChrome { focus: boolean; fills?: boolean; toggleFocus: () => void; consoleOpen: boolean; toggleConsole: () => void }
 export const DashChromeContext = createContext<DashChrome | null>(null);
 
 interface Props {
@@ -420,7 +421,8 @@ function FocusButtons() {
   return (
     <>
       <button className="icon-btn" aria-pressed={chrome.consoleOpen} title={t(chrome.consoleOpen ? 'console.hide' : 'console.show')} aria-label={t(chrome.consoleOpen ? 'console.hide' : 'console.show')} onClick={chrome.toggleConsole}><Icon name="console" /></button>
-      <button className="icon-btn" aria-pressed title={t('view.focusExit')} aria-label={t('view.focusExit')} onClick={chrome.toggleFocus}><Icon name="shrink" /></button>
+      {/* FD-333: a console that fills the window is left by closing it (the button above, or Esc). */}
+      {!chrome.fills && <button className="icon-btn" aria-pressed title={t('view.focusExit')} aria-label={t('view.focusExit')} onClick={chrome.toggleFocus}><Icon name="shrink" /></button>}
     </>
   );
 }
