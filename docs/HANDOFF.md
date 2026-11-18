@@ -7,6 +7,19 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.202: template and etalon, an agent without code (2026-11-18)
+
+Released: 0.8.201 (FD-331 Connect an agent, FD-326, FD-333, FD-334, FD-339; 0.8.200 never published, its check failed on
+two path tests). Tagged: v0.8.202 (FD-330 a cloud agent with no repository shows its console muted, «Без агента для
+кода»; FD-336 Health names the template, its version and the etalon's, from the agents base's template extension, D-71;
+run 44388081610). Board: the agents base told the display shipped (thread `2ee63c7c`, reply `28853975`).
+FD-339's old tool names stay one more release: a notification relay's release checks still call `host_status`, `link` and
+`open` by the old names; asked to move to `execute` (request `caa7ec38`, thread `7dc61f5f`); the names go in the release
+after their answer. Waits: FD-335 and FD-325 need an unlocked screen and load under 40 (now 47 to 58); FD-337 Open in
+Switchboard waits for SB-479; FD-331's rest waits for studio-agent STU-148 (by 2026-11-21); FD-322 not before 2026-11-25.
+Next task: confirm v0.8.202 published (16 assets) and the installed app updated; then retire the old MCP tool names once
+`caa7ec38` is answered; FD-335 and FD-325 when the screen is unlocked.
+
 ## Waves of 2026-11-18, state at 18:50 UTC (2026-11-18)
 
 Released: 0.8.199 (FD-327, FD-328, FD-329; run 44363277392 green, 16 assets). Tagged: v0.8.200 (FD-326, FD-333, FD-334,
