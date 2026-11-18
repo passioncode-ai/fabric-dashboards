@@ -546,6 +546,10 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
   // process gone) is ended, whatever its launch record still says.
   const pageEnded = new Map<string, number | null>();
   for (const p of i.page ?? []) if (p.id.startsWith('launch:') && p.group === 'ended' && p.launchId) pageEnded.set(p.launchId, p.since);
+  // FD-337 (Switchboard's answer `df616d97`): Switchboard owns sessions; a launch its page lists offers exactly the acts
+  // the page gives it (Open here, End), each one of Switchboard's doors.
+  const pageActs = new Map<string, string[]>();
+  for (const p of i.page ?? []) if (p.id.startsWith('launch:') && p.launchId) pageActs.set(p.launchId, p.acts);
   for (const s of sb) {
     if (used.has(s)) continue;
     const endedThere = s.launch?.launchId ? pageEnded.get(s.launch.launchId) : undefined;
@@ -556,7 +560,9 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     const state: SessionState = running ? (isBackground(s) ? 'running-background' : 'running-terminal') : 'ended';
     add(row({
       id: sbRowId(s), key: null, folder: s.folder, agent: s.agent,
-      actions: running && s.attachable && s.launch?.launchId ? ['attach', ...actionsFor(state)] : undefined,
+      actions: running && s.launch?.launchId && LAUNCH_RE.test(s.launch.launchId) && pageActs.has(s.launch.launchId)
+        ? [...(pageActs.get(s.launch.launchId)!.includes('attach') ? ['attach' as const] : []), ...(pageActs.get(s.launch.launchId)!.includes('end') ? ['end' as const] : []), ...actionsFor(state)]
+        : running && s.attachable && s.launch?.launchId ? ['attach', ...actionsFor(state)] : undefined,
       account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
       // SB-201: only a Claude Code session has a Claude Code conversation to resume; a proxy launch rides `claude` too.
       // FD-207: a board run (`switchboard dispatch`) has no window; one launched in place runs in someone's terminal.
