@@ -30,6 +30,9 @@ import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchLoad, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readLoad, type LoadEntry } from '../core/load';
 import { readSpend, type SpendEntry } from '../core/spend';
+import { createHash } from 'node:crypto';
+import { changeOf, limitDoorOf, planLimitChange, SPEND_LIMITS_SET, type LimitChangeInput } from '../core/limit-edit';
+import { callCapability } from '../core/mcp-client';
 import { arrangeProducts, categoryOf, groupProducts, moveInSection, productIdOf, setKind, setOff, showAgain, togglePin, type Category, type Product } from '../core/products';
 import { moveTab, pinTab } from '../core/layout';
 import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph } from '../core/connections';
@@ -812,6 +815,43 @@ export async function spend(deps: Deps, key?: string): Promise<{ services: (Spen
     }),
   };
 }
+
+// #region limit-edit-mcp — docs: docs/ux/scenarios.md#scn-037-a-cost-that-is-not-known-reads-as-unknown
+/** FD-324: the operator's decision a relayed call carried (DEC-0121 AP-2), checked by the server; it goes on to the agent
+ *  without a target, which named this app's object, not the agent's. */
+export interface RelayedDecision { by: 'operator'; via: 'relayed-instruction'; action: string; instruction: string; at: string }
+
+/** FD-324 (contract DEC-0183 SL-2): change one of an agent's spending limits through its own `spend.limits.set`. The
+ *  change is first checked against the agent's report (the host's view); a change that does more than tighten needs the
+ *  operator's decision; the agent checks again and records the change, which is answered. */
+export async function spendLimitSet(deps: Deps, key: string, change: LimitChangeInput, decision: RelayedDecision | null, idempotencyKey: string | undefined, clientVersion: string): Promise<{ service: string; change: Record<string, unknown>; repeated: boolean }> {
+  const k = find(deps, key).key;
+  const [me] = await look(deps, [k]);
+  if (!me?.descriptor) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
+  const [entry] = await readSpend([me], { token: deps.token, fetchUsage: deps.usage, now: deps.now });
+  if (entry?.kind !== 'report') throw new ToolError(`${k}: its spend report could not be read, so its limits are not known here`, { code: 'report-unreadable', service: k });
+  const plan = planLimitChange(entry.summary.limits, change);
+  if (!plan.ok) throw new ToolError(`${k}: ${plan.message}`, { code: plan.code, service: k, limitId: change.limitId });
+  if (!plan.tightens && !decision) {
+    throw new ToolError(`${k}: raising, clearing or turning off ${change.limitId} is the operator's decision; relay their words in params._meta.decision (action spend.limits.set)`, { code: 'operator-decision-required', service: k, action: SPEND_LIMITS_SET, limitId: change.limitId });
+  }
+  const door = limitDoorOf(me);
+  if (!door) throw new ToolError(`${k}: the agent does not take spend.limits.set on this Mac`, { code: 'no-limit-door', service: k });
+  const d = me.descriptor;
+  const headers = d.auth?.tokenFile ? authHeaders(d, await deps.token(d.auth.tokenFile)) : {};
+  // Without a key of the caller's, one per change and minute: a retry within it is the same change at the agent.
+  const keyFor = idempotencyKey ?? `fd-${createHash('sha256').update(JSON.stringify([k, plan.args, decision?.at ?? null, Math.floor(deps.now() / 60_000)])).digest('hex').slice(0, 32)}`;
+  let result: unknown;
+  try {
+    result = await callCapability({ ...door, headers }, SPEND_LIMITS_SET, { ...plan.args, idempotencyKey: keyFor }, clientVersion, 20_000, { ...(decision ? { meta: { decision } } : {}), idempotencyKey: keyFor });
+  } catch (error) {
+    throw new ToolError(`${k}: ${(error as Error).message}`, { code: 'agent-refused', service: k, limitId: change.limitId });
+  }
+  const answer = changeOf(result);
+  if (!answer) throw new ToolError(`${k}: the agent answered without the change it recorded`, { code: 'no-change-recorded', service: k });
+  return { service: k, ...answer };
+}
+// #endregion limit-edit-mcp
 
 // #region load-mcp — docs: docs/ux/scenarios.md#scn-076-see-how-busy-an-agent-is
 /** FD-93: how busy one agent is, from its own load report (contract DEC-0104), as its Load tab shows it. A service that

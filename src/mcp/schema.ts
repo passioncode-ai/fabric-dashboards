@@ -149,6 +149,19 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
+    name: 'spend_limit_set',
+    description: 'Change one of an agent\'s spending limits, as Change on Spend does (FD-324, contract DEC-0183): the agent\'s own `spend.limits.set` records it. limitId is a limit the spend tool lists with editable: true; give limitUsd (dollars, inside its minUsd..maxUsd), enforced, or both, and the reason it is recorded with. A lower amount or turning a limit on is your own act; a higher amount or turning it off is the operator\'s: pass their words in params._meta.decision (action spend.limits.set), else the answer is operator-decision-required. Answers the change the agent recorded (before, after, its id); the same idempotencyKey answers the first change.',
+    inputSchema: { type: 'object', properties: {
+      service: serviceArg,
+      limitId: { type: 'string', minLength: 1, maxLength: 128 },
+      limitUsd: { type: 'number', exclusiveMinimum: 0 },
+      enforced: { type: 'boolean' },
+      reason: { type: 'string', minLength: 1, maxLength: 500 },
+      idempotencyKey: { type: 'string', minLength: 1, maxLength: 128 },
+    }, required: ['service', 'limitId', 'reason'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  {
     name: 'agent_connect',
     description: 'Connect an organization\'s agents to this Mac from an invitation link, as the window\'s Connect an agent does (FD-331, FD-193): link is the whole fabric-dashboards://register?origin=…&invite=… link. The running app parses it, asks the person to confirm, redeems the one-time invitation for a token of this computer and adds the showcase and each agent its grant names. Answers host, added and skipped, or refused with why. Needs the app running.',
     inputSchema: { type: 'object', properties: { link: { type: 'string', maxLength: 2048 } }, required: ['link'], additionalProperties: false },

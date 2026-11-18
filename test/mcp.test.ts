@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -805,7 +806,7 @@ test('FD-110: initialize declares this app\'s buttons; each has its tool on this
   const view = actionsOf({ surfaces: { mcp: { capabilities: TOOLS.map((t) => t.name) } }, extensions: meta });
   assert.equal(view.declared, true);
   assert.deepEqual(view.findings, []);
-  assert.deepEqual(view.actions.filter((a) => a.gate === 'relayed').map((a) => a.id), ['start', 'stop', 'restart', 'update', 'new-session', 'fix-with-coding-agent', 'new-standalone-session', 'new-agent', 'new-dashboard', 'rename', 'session-continue', 'session-end', 'restart-to-update', 'move-to-applications', 'uninstall'], 'FD-175: the window\'s buttons too; FD-191: New session in a folder and New agent; FD-171: New dashboard');
+  assert.deepEqual(view.actions.filter((a) => a.gate === 'relayed').map((a) => a.id), ['start', 'stop', 'restart', 'update', 'new-session', 'fix-with-coding-agent', 'new-standalone-session', 'new-agent', 'new-dashboard', 'rename', 'session-continue', 'session-end', 'restart-to-update', 'spend.limits.set', 'move-to-applications', 'uninstall'], 'FD-175: the window\'s buttons too; FD-191: New session in a folder and New agent; FD-171: New dashboard; FD-324: Change a spending limit');
   assert.ok(ACTIONS_EXTENSION in meta);
 });
 
@@ -1161,4 +1162,50 @@ test('FD-339: an old tool name is refused retired-name with the execute call tha
   assert.equal((unknown as { error: { code: number } }).error.code, -32602);
   const viaDoor = await handle(deps, { id: 3, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   assert.ok(!(viaDoor!.result as { isError?: boolean }).isError, 'the same operation runs through execute');
+});
+
+// FD-324 (contract DEC-0183 SL-2): spend_limit_set checks a change against the agent's report and calls the agent's own
+// spend.limits.set; a raise needs the operator's words, which go on to the agent in _meta.decision.
+test('FD-324: spend_limit_set tightens as the caller\'s act, refuses a raise without the operator\'s decision, and carries one to the agent', { skip: process.platform === 'win32' && 'the token goes to a loopback port only after the owner check, which needs the signed helper on Windows' }, async (t) => {
+  const got: { name: string; args: Record<string, unknown>; meta: unknown }[] = [];
+  const agent = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      if (req.method === 'DELETE') { res.writeHead(204); res.end(); return; }
+      const msg = JSON.parse(body) as { id?: number; method: string; params?: { name: string; arguments: Record<string, unknown>; _meta?: unknown } };
+      const json = (result: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result })); };
+      if (msg.method === 'initialize') return json({ protocolVersion: '2025-03-26' });
+      if (!msg.id) { res.writeHead(202); res.end(); return; }
+      if (msg.method === 'tools/list') return json({ tools: [{ name: 'spend.limits.set' }] });
+      got.push({ name: msg.params!.name, args: msg.params!.arguments, meta: msg.params!._meta });
+      const a = msg.params!.arguments;
+      return json({ structuredContent: { change: { id: `chg-${got.length}`, limitId: a.limitId, before: { limitUsd: 20, enforced: true }, after: { limitUsd: a.limitUsd, enforced: true }, reason: a.reason } } });
+    });
+  });
+  await new Promise<void>((r) => agent.listen(0, '127.0.0.1', r));
+  t.after(() => agent.close());
+  const origin = `http://127.0.0.1:${(agent.address() as { port: number }).port}`;
+  const doc = { ...WELL_KNOWN, surfaces: { ...WELL_KNOWN.surfaces, usage: { path: '/fabric/v1/usage' }, mcp: { transport: 'streamable-http', path: '/mcp', capabilities: ['spend.limits.set'] } } } as unknown as WellKnown;
+  const { deps } = world({ descriptor: { origin }, answers: [{ kind: 'answer', doc, ms: 3 }] });
+  deps.usage = async () => fixture('positive_service-usage-limits-edit.json');
+  const at = new Date(deps.now()).toISOString(); // the world's clock
+  const execute = (args: Record<string, unknown>, decision?: unknown, key = `k-${Math.random()}`) => handle(deps, { id: 1, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'spend_limit_set', arguments: args, idempotencyKey: key }, ...(decision ? { _meta: { decision } } : {}) } });
+  const lower = await execute({ service: KEY, limitId: 'machine.daily', limitUsd: 10, reason: 'calmer week' });
+  const r1 = lower!.result as { isError?: boolean; structuredContent: { change: { id: string } } };
+  assert.ok(!r1.isError, JSON.stringify(lower));
+  assert.equal(r1.structuredContent.change.id, 'chg-1');
+  assert.equal(got[0]!.name, 'spend.limits.set');
+  assert.equal(got[0]!.meta, undefined, 'a tightening carries no decision');
+  assert.equal(got[0]!.args.limitUsd, 10);
+  assert.equal(typeof got[0]!.args.idempotencyKey, 'string');
+  const raise = await execute({ service: KEY, limitId: 'machine.daily', limitUsd: 50, reason: 'launch' });
+  assert.equal((raise!.result as { structuredContent: { code: string } }).structuredContent.code, 'operator-decision-required');
+  assert.equal(got.length, 1, 'nothing reached the agent');
+  const bounds = await execute({ service: KEY, limitId: 'machine.daily', limitUsd: 500, reason: 'too much' });
+  assert.equal((bounds!.result as { structuredContent: { code: string } }).structuredContent.code, 'invalid-amount');
+  const decision = { by: 'operator', via: 'relayed-instruction', action: 'spend.limits.set', target: KEY, instruction: 'подними дневной лимит до 50 на неделю запуска', at };
+  const raised = await execute({ service: KEY, limitId: 'machine.daily', limitUsd: 50, reason: 'launch week' }, decision);
+  assert.ok(!(raised!.result as { isError?: boolean }).isError, JSON.stringify(raised));
+  assert.deepEqual(got[1]!.meta, { decision: { by: 'operator', via: 'relayed-instruction', action: 'spend.limits.set', instruction: decision.instruction, at } }, 'the operator\'s words go on, without this app\'s target');
 });

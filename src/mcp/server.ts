@@ -67,7 +67,7 @@ function wrongArgument(schema: Schema, args: Args): string | null {
 }
 const str = (a: Args, k: string): string | undefined => (typeof a[k] === 'string' ? (a[k] as string) : undefined);
 
-export async function call(deps: tools.Deps, name: string, args: Args): Promise<unknown> {
+export async function call(deps: tools.Deps, name: string, args: Args, decision?: tools.RelayedDecision): Promise<unknown> {
   switch (name) {
     case 'host_status': return deps.host();
     case 'organizations': return tools.organizationsKnown(deps);
@@ -133,6 +133,10 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'audit': return withDeadline(tools.auditAll(deps), AUDIT_DEADLINE_MS, 'audit');
     case 'setup_check': return tools.setupCheck(deps);
     case 'spend': return tools.spend(deps, str(args, 'service'));
+    case 'spend_limit_set': return tools.spendLimitSet(deps, need(args, 'service'), {
+      limitId: need(args, 'limitId'), reason: need(args, 'reason'),
+      ...(typeof args.limitUsd === 'number' ? { limitUsd: args.limitUsd } : {}), ...(typeof args.enforced === 'boolean' ? { enforced: args.enforced } : {}),
+    }, decision ?? null, typeof args.idempotencyKey === 'string' ? args.idempotencyKey : undefined, SERVER.version);
     case 'load': return tools.load(deps, need(args, 'service'));
     default: throw new tools.ToolError(`unknown tool ${JSON.stringify(name)}`);
   }
@@ -165,6 +169,7 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
       // FD-110 part 3 (MD-10): a relayed action records the operator's decision; an invalid one is refused, and a call
       // without one still runs as the caller's own act until the app can ask the person itself (src/mcp/actions.ts).
       const own = actionOf(name, args);
+      let relayed: tools.RelayedDecision | undefined;
       if (own) {
         const meta = params._meta && typeof params._meta === 'object' ? params._meta as Record<string, unknown> : {};
         const target = typeof args.service === 'string' ? args.service : typeof args.row === 'string' ? args.row : null;
@@ -175,6 +180,7 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
           return reply({ content: [{ type: 'text', text: JSON.stringify(refusal, null, 2) }], isError: true, structuredContent: refusal });
         }
         if (outcome.recordAs !== 'caller') {
+          relayed = { by: 'operator', via: 'relayed-instruction', action: outcome.decision.action, instruction: outcome.decision.instruction, at: outcome.decision.at };
           const used = (deps.decisionUsed ?? ((d, t) => decisionUsed(decisionsFile(), d, t)))({ action: own.id, target, instruction: outcome.decision.instruction, at: outcome.decision.at }, now);
           if (used) {
             const refusal = { code: 'decision-used', message: `this decision of the operator already served an act at ${used}; a decision serves one act. Relay the operator's words for this one`, action: own.id };
@@ -192,7 +198,7 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
         }
       }
       try {
-        const result = await call(deps, name, args);
+        const result = await call(deps, name, args, relayed);
         return reply({ content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result });
       } catch (error) {
         // A refusal is a tool result the agent reads, not a protocol failure (MCP «isError»).
