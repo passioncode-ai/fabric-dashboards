@@ -131,3 +131,22 @@ test('FD-79: an update that cannot be unpacked names why: a full disk before try
   assert.equal(unpackFailure('A.zip', '\n ditto: Couldn\'t write file: No space left on device \nmore', 1.5 * GB), 'A.zip could not be unpacked: ditto: Couldn\'t write file: No space left on device (1.5 GB free)');
   assert.equal(unpackFailure('A.zip', '', null), 'A.zip could not be unpacked');
 });
+
+test('FD-320: an update that cannot be downloaded says why before a byte is written, and a full disk mid-download is named', async () => {
+  const { downloadRoomRefusal, downloadWriteFailure, freeBytesAt, UNPACK_MARGIN_BYTES } = await import('../src/core/self-update');
+  const GB = 1024 ** 3;
+  const zip = 0.25 * GB;
+  assert.equal(downloadRoomRefusal(zip, 1.5 * GB, true), null, 'macOS: the zip and its unpacked app, 4 × 0.25 GB + 0.25 GB');
+  assert.match(downloadRoomRefusal(zip, 1.0 * GB, true)!, /^not enough free space to download the update: 1\.0 GB free, about 1\.3 GB needed/);
+  assert.equal(downloadRoomRefusal(zip, 0.6 * GB, false), null, 'an installer or AppImage needs only itself and the margin');
+  assert.match(downloadRoomRefusal(zip, 0.4 * GB, false)!, /about 0\.5 GB needed/);
+  assert.equal(downloadRoomRefusal(null, 0, true), null, 'no announced size: try');
+  assert.equal(downloadRoomRefusal(zip, null, true), null, 'unknown free space: try');
+  assert.equal(downloadRoomRefusal(0, UNPACK_MARGIN_BYTES, true), null);
+  const full = Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' });
+  assert.equal(downloadWriteFailure(full, 'A.zip', 0.2 * GB), 'the disk filled up while downloading A.zip (0.2 GB free). Free some space; the next check tries again');
+  assert.equal(downloadWriteFailure(full, 'A.zip', null), 'the disk filled up while downloading A.zip. Free some space; the next check tries again');
+  assert.equal(downloadWriteFailure(new Error('socket hang up'), 'A.zip', 1), 'socket hang up', 'another error keeps its own words');
+  assert.equal(typeof freeBytesAt(process.cwd()), 'number');
+  assert.equal(freeBytesAt(path.join(process.cwd(), 'no-such-folder-fd-320')), null);
+});

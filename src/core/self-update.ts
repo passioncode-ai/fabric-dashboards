@@ -136,6 +136,26 @@ export function unpackRoomRefusal(zipBytes: number, freeBytes: number | null): s
   return freeBytes < need ? `not enough free space to unpack the update: ${gb(freeBytes)} free, about ${gb(need)} needed. Free some space; the next check tries again` : null;
 }
 
+/** FD-320: the free bytes of the disk holding `dir`, null when they cannot be read. */
+export function freeBytesAt(dir: string): number | null {
+  try { const s = fs.statfsSync(dir); return s.bavail * s.bsize; } catch { return null; }
+}
+
+/** FD-320 (audit C2-08): why an update cannot be downloaded before a byte is written, in words a person can act on;
+ *  null when there is room, or when the size or the free space is unknown (then the download is tried). On macOS the
+ *  zip is unpacked beside itself (`unpack`), so the room for both is asked for at once. */
+export function downloadRoomRefusal(bytes: number | null, freeBytes: number | null, unpack: boolean): string | null {
+  if (bytes === null || freeBytes === null) return null;
+  const need = bytes * (unpack ? 1 + UNPACK_FACTOR : 1) + UNPACK_MARGIN_BYTES;
+  return freeBytes < need ? `not enough free space to download the update: ${gb(freeBytes)} free, about ${gb(need)} needed. Free some space; the next check tries again` : null;
+}
+
+/** FD-320: a write that failed because the disk is full says so, with the free space; any other error keeps its words. */
+export function downloadWriteFailure(error: Error & { code?: string }, file: string, freeBytes: number | null): string {
+  if (error.code !== 'ENOSPC') return error.message;
+  return `the disk filled up while downloading ${file}${freeBytes === null ? '' : ` (${gb(freeBytes)} free)`}. Free some space; the next check tries again`;
+}
+
 /** FD-79: a failed unpack names the tool's own first line and the free space, never only "could not be unpacked". */
 export function unpackFailure(zipName: string, output: string, freeBytes: number | null): string {
   const said = output.split('\n').map((l) => l.trim()).find(Boolean)?.slice(0, 200);

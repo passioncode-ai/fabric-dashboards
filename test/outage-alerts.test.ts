@@ -461,3 +461,24 @@ test('FD-304: alertWords gives every channel sentence in English and Russian, wi
     assert.notEqual(alertWords('en').down('A'), alertWords('ru').down('A'));
   }
 });
+
+test('FD-320: a write that fails keeps the state and the saved file, says so once and is written again later', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-320-'));
+  const file = path.join(dir, 'outage-alerts.json');
+  fs.mkdirSync(file); // a folder in the file's place: every rename onto it fails, as a full disk does
+  fs.writeFileSync(path.join(file, 'x'), '');
+  const lines: string[] = [];
+  const alerts = new OutageAlerts({ dataDir: dir, snapshots: () => [], settings: () => merge({}), words: () => words, nameOf: () => 'x', reasonOf: () => 'x', allowed: () => true, version: '0', log: (l) => lines.push(l), changed: () => undefined });
+  alerts.ask('a.default', 'e1', { name: 'A', episode: 'ep-a', at: 1, text: 'one?', link: null });
+  alerts.ask('a.default', 'e2', { name: 'A', episode: 'ep-b', at: 2, text: 'two?', link: null });
+  assert.equal(lines.filter((l) => l.includes('could not be written')).length, 1, 'said once, not at each write');
+  assert.match(lines.find((l) => l.includes('could not be written'))!, /the last saved copy stays, tried again every minute/);
+  assert.equal(fs.readdirSync(dir).filter((f) => f.startsWith('.')).length, 0, 'no temporary file is left behind');
+  fs.rmSync(file, { recursive: true, force: true });
+  (alerts as unknown as { write: () => void }).write(); // the retry the timer would run
+  assert.ok(lines.includes('alerts: outage-alerts.json written again'));
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as OutageState;
+  assert.equal(Object.keys(saved.asks ?? {}).length, 2, 'both asks kept in memory reached the file');
+  alerts.stop();
+  fs.rmSync(dir, { recursive: true, force: true });
+});

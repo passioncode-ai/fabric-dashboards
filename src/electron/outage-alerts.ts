@@ -18,6 +18,7 @@ const TICK_MS = 30_000;
 /** FD-317 (P2-05): how long a changed state waits before it is written, and how often its last good copy is refreshed. */
 const SAVE_DELAY_MS = 2_000;
 const BAK_EVERY_MS = 60 * 60_000;
+const RETRY_WRITE_MS = 60_000;
 const RETRY_MS = 60_000;
 
 export class OutageAlerts {
@@ -86,14 +87,25 @@ export class OutageAlerts {
 
   private writeTimer: NodeJS.Timeout | null = null;
   private bakAt = -Infinity;
+  /** FD-320 (audit C2-08): a failed write keeps the state in memory and the last saved file as it was, says so once
+   *  and tries again a minute later; the copy is written whole or not at all, so a full disk never damages it. */
+  private unsaved: string | null = null;
   private write(): void {
     if (this.writeTimer) { clearTimeout(this.writeTimer); this.writeTimer = null; }
     try {
       const at = Date.now();
-      if (at - this.bakAt >= BAK_EVERY_MS && fs.existsSync(this.file())) { fs.copyFileSync(this.file(), `${this.file()}.bak`); this.bakAt = at; }
+      if (at - this.bakAt >= BAK_EVERY_MS && fs.existsSync(this.file())) { atomicWrite(`${this.file()}.bak`, fs.readFileSync(this.file()), 0o600); this.bakAt = at; }
       atomicWrite(this.file(), `${JSON.stringify(this.state)}\n`, 0o600);
+      if (this.unsaved) this.o.log(`alerts: ${FILE} written again`);
+      this.unsaved = null;
     } catch (error) {
-      this.o.log(`alerts: ${FILE} could not be written: ${(error as Error).message}`);
+      const why = (error as Error).message;
+      if (this.unsaved === null) this.o.log(`alerts: ${FILE} could not be written: ${why}; the last saved copy stays, tried again every minute`);
+      this.unsaved = why;
+      if (!this.stopped) {
+        this.writeTimer = setTimeout(() => this.write(), RETRY_WRITE_MS);
+        this.writeTimer.unref?.();
+      }
     }
   }
 
@@ -104,8 +116,8 @@ export class OutageAlerts {
 
   /** Nothing is sent once the app quits. */
   stop(): void {
+    this.stopped = true; // first, so a write that fails here leaves no retry behind
     if (this.writeTimer) this.write();
-    this.stopped = true;
     if (this.interval) clearInterval(this.interval);
     if (this.timer) clearTimeout(this.timer);
     this.interval = null;
