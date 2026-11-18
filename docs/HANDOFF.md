@@ -7,6 +7,18 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.206: Continue without a conversation, placed agents through a forward (2026-11-19)
+
+Published: 0.8.206 (2026-11-18 23:39 UTC, run 44417720288, 16 assets): FD-341 (Continue refuses `no-transcript` when a
+known conversation is gone; a limit stop keeps FIX-4's way) and FD-340 (an agent placed elsewhere with no launchd job
+here reads reached through its forward when the placement record names it; service-host 0.11.1). FD-342 decided with no
+change (GitHub's own write check bounds Rename). The agents base was answered (reply `bdde99a5`, thread `7f075091`).
+Waits: FD-325 and FD-335 need an unlocked screen and load under 40 (a watcher checks every 5 minutes overnight);
+FD-337 Open in Switchboard waits for SB-479; FD-331's rest for STU-148 (by 2026-11-21); Change on an online agent for
+FD-194; FD-322 not before 2026-11-25. Next task: once `node scripts/check-screen.mjs` and `node scripts/check-machine.mjs`
+pass, `npm run test:e2e -- test/e2e/overview-settings.test.ts test/e2e/app.test.ts`, then the whole suite (FD-325), then
+walk the launch UI on the built app (FD-335).
+
 ## 0.8.205: spending limits changed from Spend (2026-11-18)
 
 Published: 0.8.204 (22:08 UTC, 16 assets) and 0.8.205 (22:51 UTC, run 44409201626, 16 assets: FD-324 in full, the read
