@@ -77,7 +77,7 @@ test('SCN-078, SCN-086: Switchboard is "not installed" only once looked for; the
 
 test('SCN-083: a refused Continue now leaves the stop waiting; only an automatic continue is recorded as failed', () => {
   const host = read('src/electron/console.ts');
-  assert.equal((host.match(/if \(automatic\) this\.actedStops\.set\(stop\.event, view\('failed'\)\)/g) ?? []).length, 2);
+  assert.equal((host.match(/if \(automatic\) this\.rec\.acted\.set\(stop\.event, view\('failed'\)\)/g) ?? []).length, 2);
 });
 
 test('SCN-072: moving an agent keeps the manual places of agents the filter hides', async () => {

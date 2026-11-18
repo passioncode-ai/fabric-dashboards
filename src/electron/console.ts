@@ -37,6 +37,7 @@ import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesClo
 import { parseTargets, remoteAttachArgv, remoteContinueArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
 import { HandoverBook } from '../core/handover-book';
 import { StopClaims } from '../core/stop-claims';
+import { RecoveryBook } from '../core/recovery-book';
 import { ownedRunner } from '../core/children';
 import { attachOwnKey, consoleRowId, degradedSince, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
@@ -148,8 +149,6 @@ const QUIT_FINISH_MS = 1500;
 /** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
 /** C2-01: how long the machine session limit Switchboard last named stands while it does not answer in time. */
 export const CAPACITY_KEEP_MS = 10 * 60_000;
-/** P2-06: how long a stop acted on stays in the recovery view once Switchboard no longer lists it. */
-export const ACTED_KEEP_MS = 24 * 60 * 60_000;
 /** FD-316: how long a history read serves passes with no ready stop, for the same open launches. */
 export const MOVED_ON_FRESH_MS = 5 * 60_000;
 /** FD-315: when a catalog whose Switchboard agents list got no answer in time is read again. */
@@ -181,13 +180,8 @@ export class ConsoleHost {
   private readonly handoverOf = new Map<string, SbHandover>();
   /** FD-83: the hand-over records of sessions this launch continued after a limit, by console key. */
   private readonly resumedKeys = new Set<string>();
-  /** FD-83: stops this launch acted on (continued, or failed to), by event — each is acted on once. */
-  private readonly actedStops = new Map<string, StopView>();
-  /** FD-233: the reason each stop last waited for room (LC-17), so a stop that keeps waiting is logged once per reason. */
-  private readonly waitNoted = new Map<string, string>();
-  /** FD-288: what each ready stop waits for on this Mac (LC-17), shown on its session's row and page. */
-  private readonly heldNow = new Map<string, HeldContinue>();
-  private recovery: RecoveryStatus = { on: true, stops: [], resumed: 0 };
+  /** FD-83, FD-233, FD-288, FD-103, R1-U6: what limit recovery knows between reads (FD-310: src/core/recovery-book.ts). */
+  private readonly rec = new RecoveryBook();
   /** F2, F3 of FIX-2 and FIX-4: the stops this launch takes up, claims and has not finished (FD-310: src/core/stop-claims.ts). */
   private readonly claims = new StopClaims();
   /** FIX-4: the account labels a waiting stop is shown with, read at most once per BINDING_FRESH_MS. */
@@ -201,11 +195,6 @@ export class ConsoleHost {
   private readonly failedResumes = new Set<string>();
   /** FD-103: the coding agent's own session id of a console that continues a known session, for Continue later. */
   private readonly sessionIds = new Map<string, { sessionId: string; provider: 'claude' | 'codex' }>();
-  /** FD-103: the stops of the last recovery read, by event, for Continue now. */
-  private readonly lastStops = new Map<string, SbStop>();
-  /** R1-U6: an unreadable recovery since its first failure, like the hand-overs' (a status that changes every tick is
-   *  pushed every tick). */
-  private recoveryDegraded: SourceDegraded | null = null;
   /** Scenario walk 2026-11-11 (SCN-078): null until the first inventory answers, so a launch never says "not installed" for a Switchboard it has not looked for yet. */
   private switchboardPresent: boolean | null = null;
   /** Scenario walk 2026-11-11 (SCN-084): the origin a continued session keeps, by console key. */
@@ -883,7 +872,7 @@ export class ConsoleHost {
   /** FD-314 (P2-03): Switchboard's last hand-over or limit-stop read got no answer in time; the next tick waits twice as
    *  long, so a loaded machine is not asked again on the next beat. */
   switchboardSlow(): boolean {
-    return [this.handovers.degraded, this.recoveryDegraded].some((d) => d !== null && /no answer within/.test(d.detail));
+    return [this.handovers.degraded, this.rec.degraded].some((d) => d !== null && /no answer within/.test(d.detail));
   }
 
   /** FD-62 (SB-108): takes each hand-over Switchboard left for a console, once, on a console PTY. One the
@@ -953,27 +942,21 @@ export class ConsoleHost {
     if (this.quitting) return []; // F3 of FIX-2: nothing starts once the app quits
     const on = this.o.settings.get().resumeAfterLimit;
     const inv = await this.inventory();
-    if (!inv.switchboard) return this.setRecovery({ on, unavailable: 'absent', stops: [], resumed: this.recovery.resumed });
+    if (!inv.switchboard) return this.setRecovery({ on, unavailable: 'absent', stops: [], resumed: this.rec.status.resumed });
     const r = await recoveryOf(this.run, inv.switchboard);
     if ('unavailable' in r) {
-      if (this.recovery.unavailable !== r.unavailable) this.o.log(`console: limit stops cannot be read (${r.unavailable}): ${r.detail}`);
-      this.recoveryDegraded = degradedSince(this.recoveryDegraded, 'recovery', r.unavailable, r.detail.slice(0, 300), now);
-      return this.setRecovery({ on, unavailable: r.unavailable, stops: [...this.actedStops.values()], resumed: this.recovery.resumed });
+      if (this.rec.status.unavailable !== r.unavailable) this.o.log(`console: limit stops cannot be read (${r.unavailable}): ${r.detail}`);
+      this.rec.unreadable(r.unavailable, r.detail, now);
+      return this.setRecovery({ on, unavailable: r.unavailable, stops: [...this.rec.acted.values()], resumed: this.rec.status.resumed });
     }
-    if (this.recovery.unavailable && this.recovery.unavailable !== 'absent') this.o.log('console: limit stops can be read again'); // FD-85, as FD-69 for hand-overs
-    this.recoveryDegraded = null;
+    if (this.rec.status.unavailable && this.rec.status.unavailable !== 'absent') this.o.log('console: limit stops can be read again'); // FD-85, as FD-69 for hand-overs
     // FD-103 (decision 2): a stop the person declined, or removed from the list, is never continued here; the decline
     // outlives its row (Remove and Clear keep the record, hidden), and only the person's Continue undoes it (R1-U2).
     const m = this.memory();
     const held = new Set([...m.records.filter((x) => x.end === 'declined').map((x) => x.id), ...m.dismissed.filter((d) => d.id.startsWith('st:')).map((d) => d.id)]);
-    this.lastStops.clear();
-    for (const s of r.stops) this.lastStops.set(s.event, s);
-    for (const e of [...this.waitNoted.keys()]) if (!this.lastStops.has(e)) this.waitNoted.delete(e);
-    for (const e of [...this.heldNow.keys()]) if (!this.lastStops.has(e)) this.heldNow.delete(e);
     // P2-06 (2026-11-17 performance audit): a stop acted on stays in the view while Switchboard lists it, and a day after
     // it stopped once it does not (the app restarts several times a day; before, only a restart cleared these).
-    for (const [e, v] of [...this.actedStops]) if (!this.lastStops.has(e) && now - v.stoppedAt > ACTED_KEEP_MS) this.actedStops.delete(e);
-    const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event) && !this.claims.isTaking(s.event));
+    const pending = this.rec.read(r.stops, now, (e) => this.claims.isTaking(e));
     const read = pending.some((s) => s.ready) ? await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null) : null;
     // F4 of FIX-2: a folder one of this app's consoles works in is live too (a hand-over taken on this tick has no claude
     // process yet that lsof could see), so a hand-over and a stop of one folder never both start.
@@ -1005,15 +988,15 @@ export class ConsoleHost {
       if (verdict === 'continued') continue;
       // FD-103 (decision 2): a stop the person declined is never continued by this app.
       if (verdict === 'resume' && on && due.length < RESUMES_PER_PASS && !held.has(stopRowId(s.event))) { due.push(s); continue; }
-      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s), waitReason: s.waitReason, held: this.heldNow.get(s.event) ?? null });
+      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s), waitReason: s.waitReason, held: this.rec.held.get(s.event) ?? null });
     }
     const started: string[] = [];
     for (const s of due) {
       const key = await this.resume(s, inv.switchboard, inv.dirs, s.candidates[0]!, true);
       if (key) started.push(key);
-      else if (!this.actedStops.has(s.event) && !this.claims.isTaking(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume', candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s), waitReason: s.waitReason, held: this.heldNow.get(s.event) ?? null });
+      else if (!this.rec.acted.has(s.event) && !this.claims.isTaking(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume', candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s), waitReason: s.waitReason, held: this.rec.held.get(s.event) ?? null });
     }
-    this.setRecovery({ on, stops: [...this.actedStops.values(), ...views.filter((v) => !this.actedStops.has(v.event))], resumed: this.recovery.resumed + started.length });
+    this.setRecovery({ on, stops: this.rec.withActed(views), resumed: this.rec.status.resumed + started.length });
     return started;
   }
 
@@ -1061,18 +1044,16 @@ export class ConsoleHost {
   }
 
   private setRecovery(next: RecoveryStatus): string[] {
-    const before = JSON.stringify(this.recovery);
-    this.recovery = next;
-    if (JSON.stringify(next) !== before) this.o.changed?.();
+    if (this.rec.set(next)) this.o.changed?.();
     return [];
   }
 
-  recoveryStatus(): RecoveryStatus { return this.recovery; }
+  recoveryStatus(): RecoveryStatus { return this.rec.status; }
 
   /** F2 of FIX-2: what this launch did with a stop replaces its listed view at once, not at the next read, so a waiting
    *  row of a stop just continued is not offered again. */
   private showActed(): void {
-    this.setRecovery({ ...this.recovery, stops: [...this.actedStops.values(), ...this.recovery.stops.filter((v) => !this.actedStops.has(v.event))] });
+    this.setRecovery({ ...this.rec.status, stops: this.rec.withActed(this.rec.status.stops) });
   }
 
   /** F3 of FIX-2: what a quit still waits for: continues in flight and stops claimed and not finished. */
@@ -1089,7 +1070,7 @@ export class ConsoleHost {
    *  the machine cannot carry now (LC-17) is not claimed: the next pass tries again. */
   private resume(stop: SbStop, sb: string, dirs: string[], account: string, automatic: boolean): Promise<string | null> {
     // F2 of FIX-2: a stop another path is taking up now, or this launch continued, is never claimed again.
-    if (this.quitting || this.claims.isTaking(stop.event) || this.actedStops.get(stop.event)?.verdict === 'resumed') return Promise.resolve(null);
+    if (this.quitting || this.claims.isTaking(stop.event) || this.rec.acted.get(stop.event)?.verdict === 'resumed') return Promise.resolve(null);
     return this.claims.track(stop.event, () => this.resumeOnce(stop, sb, dirs, account, automatic));
   }
 
@@ -1097,13 +1078,11 @@ export class ConsoleHost {
     const a = admit(await this.machine(stop.dir, automatic));
     if (!a.ok) {
       // FD-233: a pass every 15 s logged the same wait each time (477 lines on 2026-11-13); once per reason is enough.
-      if (this.waitNoted.get(stop.event) !== a.why) this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`);
-      this.waitNoted.set(stop.event, a.why);
-      this.heldNow.set(stop.event, heldOf(a, Date.now() + HANDOVER_POLL_MS.hidden));
+      if (this.rec.noteWait(stop.event, a.why)) this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`);
+      this.rec.held.set(stop.event, heldOf(a, Date.now() + HANDOVER_POLL_MS.hidden));
       return null;
     }
-    this.waitNoted.delete(stop.event);
-    this.heldNow.delete(stop.event);
+    this.rec.clearWait(stop.event);
     // FD-262: every path that continues a stop (the pass, Continue now) asks once more, just before the claim, whether a
     // live process holds the session (its sessions file, its arguments, or Switchboard's `live`); unknown is not "none".
     if (await this.heldElsewhere(stop.session, stop.live)) {
@@ -1127,15 +1106,14 @@ export class ConsoleHost {
     const homeTranscript = transcriptOf(stop, this.o.home ?? os.homedir());
     const transcript = homeTranscript ?? (hostedHere ? launchTranscript(stop) : null);
     if (!transcript && launchTranscript(stop)) {
-      if (this.waitNoted.get(stop.event) !== 'switchboard-home') this.o.log(`console: limit stop ${stop.event} waits: its transcript is in a Switchboard home and this one cannot continue it there now`);
-      this.waitNoted.set(stop.event, 'switchboard-home');
+      if (this.rec.noteWait(stop.event, 'switchboard-home')) this.o.log(`console: limit stop ${stop.event} waits: its transcript is in a Switchboard home and this one cannot continue it there now`);
       return null;
     }
     const claim = await this.claims.claim(stop, sb, () => claimStop(this.run, sb, stop, account));
     if (!claim.ok) {
       // Scenario walk 2026-11-11 (SCN-083): a Continue now the person pressed that was refused leaves the stop waiting, so
       // another account can be tried; only an automatic continue that failed is recorded as failed.
-      if (automatic) this.actedStops.set(stop.event, view('failed'));
+      if (automatic) this.rec.acted.set(stop.event, view('failed'));
       this.o.log(`console: limit stop ${stop.event} not claimed: ${claim.detail}`);
       this.showActed();
       return null;
@@ -1167,7 +1145,7 @@ export class ConsoleHost {
     }
     if (!r.ok) {
       await this.finish(stop, sb, 'cancelled');
-      if (automatic) this.actedStops.set(stop.event, view('failed')); // SCN-083: a refused manual continue stays waiting
+      if (automatic) this.rec.acted.set(stop.event, view('failed')); // SCN-083: a refused manual continue stays waiting
       this.o.log(`console: limit stop ${stop.event} claimed but not started in ${key}: ${r.error}; recorded as cancelled`);
       this.showActed();
       return null;
@@ -1180,7 +1158,7 @@ export class ConsoleHost {
     const alive = this.manager.snapshot(key).state === 'running';
     if (!alive || !wrote()) {
       await this.finish(stop, sb, 'cancelled');
-      this.actedStops.set(stop.event, view('failed', key));
+      this.rec.acted.set(stop.event, view('failed', key));
       // FD-103 (SES-05): one that still runs is listed as needing the person, and its console opens by its key.
       if (alive) {
         this.failedResumes.add(key);
@@ -1199,7 +1177,7 @@ export class ConsoleHost {
     this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0, paid: null });
     this.resumedKeys.add(key);
     this.sessionIds.set(key, { sessionId: stop.session, provider: stop.provider });
-    this.actedStops.set(stop.event, view('resumed', key));
+    this.rec.acted.set(stop.event, view('resumed', key));
     this.o.log(`console: session ${stop.session} stopped on a limit continued in ${key} (attempt ${stop.attempt})`);
     if (automatic) this.notice('resume', key); // FD-103 (decision 9): like a taken hand-over
     this.showActed();
@@ -1441,7 +1419,7 @@ export class ConsoleHost {
     });
     let rows = mergeSessions({
       now, switchboard: this.sbSessions.value ?? (this.switchboardPresent === false ? [] : null), pending: this.handovers.pending,
-      stops: this.recovery.stops, consoles, records: m.records, dismissed: m.dismissed, machine: this.machineSessions.value?.machine ?? null, page: this.machineSessions.value?.page ?? null,
+      stops: this.rec.status.stops, consoles, records: m.records, dismissed: m.dismissed, machine: this.machineSessions.value?.machine ?? null, page: this.machineSessions.value?.page ?? null,
       remote: this.o.settings.get().remoteSessions === false ? [] : this.remote.input(now),
     });
     // V-5 of FIX-2: an ended row whose console holds nothing (the app restarted since) says so on its page.
@@ -1459,7 +1437,7 @@ export class ConsoleHost {
     for (const r of rows) if (r.group === 'ended' && r.actions.includes('continue') && r.folder && !elsewhere(r) && !isDir(r.folder)) { r.actions = r.actions.filter((a) => a !== 'continue'); r.reason ??= 'no-folder'; }
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
-    const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handovers.degraded, this.recoveryDegraded, this.attentionDegraded].filter((d): d is SourceDegraded => d !== null);
+    const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handovers.degraded, this.rec.degraded, this.attentionDegraded].filter((d): d is SourceDegraded => d !== null);
     return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, ...(this.versionOf?.old ? { switchboardOld: { version: this.versionOf.version!, floor: SWITCHBOARD_FLOOR } } : {}), handovers: { enabled: this.handovers.enabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
   }
 
@@ -1558,19 +1536,19 @@ export class ConsoleHost {
   /** FD-103 (decision 3): Continue now on another account: claims the stop on the account the person chose, one of
    *  Switchboard's candidates, and continues it in a console, as the automatic continue does. */
   private async continueStop(event: string, account: string): Promise<SessionActionResult> {
-    const stop = this.lastStops.get(event);
+    const stop = this.rec.last.get(event);
     if (!stop) return { ok: false, reason: 'unknown' };
     if (!stop.candidates.includes(account)) return { ok: false, reason: 'account' };
     const inv = await this.inventory();
     if (!inv.switchboard) return { ok: false, reason: 'no-switchboard' };
     // F2 of FIX-2: a second press, or the background pass, is taking it up now, or this launch continued it already.
-    if (this.claims.isTaking(event) || this.actedStops.get(event)?.verdict === 'resumed') return { ok: false, reason: 'running' };
+    if (this.claims.isTaking(event) || this.rec.acted.get(event)?.verdict === 'resumed') return { ok: false, reason: 'running' };
     // Wave 1 (C-03): a refusal says its cause: held by a live process, the machine short of room, or the claim.
     if (await this.heldElsewhere(stop.session, stop.live)) return { ok: false, reason: 'held' };
     const key = await this.resume(stop, inv.switchboard, inv.dirs, account, false);
-    const waits = this.waitNoted.get(event);
+    const waits = this.rec.waitingFor(event);
     if (!key && waits) return { ok: false, reason: 'admission', detail: waits };
-    if (!key) return { ok: false, reason: 'claim', detail: this.actedStops.get(event)?.verdict };
+    if (!key) return { ok: false, reason: 'claim', detail: this.rec.acted.get(event)?.verdict };
     return { ok: true, key };
   }
 
@@ -1603,9 +1581,9 @@ export class ConsoleHost {
       m.records = m.records.filter((r) => r.id !== id);
       m.dismissed = [...m.dismissed.filter((d) => d.id !== id), { id, at: Date.now() }];
     });
-    const last = this.lastStops.get(id.slice(3));
+    const last = this.rec.last.get(id.slice(3));
     if (!last) return;
-    this.actedStops.set(last.event, { event: last.event, session: last.session, dir: last.dir, provider: last.provider, stoppedAt: last.stoppedAt, attempt: last.attempt, verdict: 'resumed', key });
+    this.rec.acted.set(last.event, { event: last.event, session: last.session, dir: last.dir, provider: last.provider, stoppedAt: last.stoppedAt, attempt: last.attempt, verdict: 'resumed', key });
     this.showActed();
     if (!sb) return;
     const read = await recoveryOf(this.run, sb).catch(() => null);
@@ -1647,7 +1625,7 @@ export class ConsoleHost {
     const row = this.rowOf(id);
     if (!row) return { ok: false, reason: 'unknown' };
     if (row.actions.includes('dontContinue') && id.startsWith('st:')) {
-      const stop = this.lastStops.get(id.slice(3));
+      const stop = this.rec.last.get(id.slice(3));
       this.keep({
         id, key: row.key, folder: row.folder, agent: row.agent, account: row.account, context: null, origin: 'limit', end: 'declined', reason: 'declined',
         startedAt: row.startedAt, endedAt: Date.now(), sessionId: stop?.session ?? null, provider: stop?.provider ?? providerOf(row.agent), handoverId: null,
