@@ -46,3 +46,11 @@ export function windowFill(o: { onAgent: boolean; consoleOpen: boolean; consoleF
   const fills = o.onAgent && o.consoleOpen && o.consoleFull && !o.dashboardFocus;
   return { fills, focus: o.onAgent && (o.dashboardFocus || fills) };
 }
+
+/** FD-330: whether an agent has a workplace for a coding agent by default: a cloud agent (remote placement) that names
+ *  no repository has no code to edit anywhere this app reaches, so its page shows it as an agent without a coding agent
+ *  (the console still opens on request). Every other agent has one: its checkout here, the machine it runs on (FD-328),
+ *  or a clone of its repository (FD-334). */
+export function hasWorkplace(d: { placement?: string; source?: { repository?: string } } | null | undefined): boolean {
+  return !(d?.placement === 'remote' && !d.source?.repository);
+}

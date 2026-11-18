@@ -9,7 +9,7 @@ import { installedByWords } from '../../core/installed-by';
 import { runFacts } from '../../core/run-facts';
 import { agentFacts } from '../../core/agent-facts';
 import { commandRan, commandReason } from '../../core/outcome';
-import { problemOf } from '../../core/focus';
+import { hasWorkplace, problemOf } from '../../core/focus';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { Feed } from './Activity';
 import { CompactActions, FixButton, UnavailablePane } from './ServiceActions';
@@ -119,6 +119,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   // FD-220: the dashboard fills the window only on its own tab; another tab keeps the header to leave by.
   const chromeCtx = useContext(DashChromeContext);
   const focused = Boolean(chromeCtx?.focus) && tab === 'dashboard';
+  const workplace = hasWorkplace(s.descriptor); // FD-330
   const toggleDetails = () => { setPeek(false); if (headerFull || !peek) onToggleHeader(); };
   const control = (action: 'restart' | 'start') => void api().control(s.key, action);
   const wk = s.wellKnown;
@@ -185,8 +186,9 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
           </div>
           <span className="spacer" />
           <FabricButton serviceKey={s.key} />
-          <button className="icon-btn" aria-pressed={consoleOpen} title={t(consoleOpen ? 'console.hide' : 'console.show')} onClick={onToggleConsole}>
-            <Icon name="console" /><span className="icon-btn-label">{t('console.show')}</span>
+          {/* FD-330: an agent with no code to edit here reads as one without a coding agent; the console still opens. */}
+          <button className={`icon-btn${!workplace && !consoleOpen ? ' muted' : ''}`} aria-pressed={consoleOpen} title={t(consoleOpen ? 'console.hide' : workplace ? 'console.show' : 'console.none.why')} onClick={onToggleConsole}>
+            <Icon name="console" /><span className="icon-btn-label">{t(workplace || consoleOpen ? 'console.show' : 'console.none')}</span>
           </button>
           {chromeCtx && (
             <button className="icon-btn" aria-pressed={chromeCtx.focus} title={t(chromeCtx.focus ? 'view.focusExit' : 'view.focus')} aria-label={t(chromeCtx.focus ? 'view.focusExit' : 'view.focus')} onClick={chromeCtx.toggleFocus}>

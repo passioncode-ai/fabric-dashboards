@@ -411,6 +411,8 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 .dash-toolbar .address { flex: 1; min-width: 0; margin: 0 var(--pc-space-2); padding: var(--pc-space-1) var(--pc-space-2); background: var(--pc-bg); color: var(--pc-text-muted); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); text-overflow: ellipsis; }
 .dash-toolbar .address:focus { color: var(--pc-text); outline: 2px solid var(--pc-focus); outline-offset: -1px; }
 .icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text-muted); font-size: var(--pc-type-card); line-height: 1; cursor: pointer; }
+/* FD-330: an agent without a coding agent: its console button reads quieter, and still opens the console. */
+.icon-btn.muted { opacity: .65; }
 .icon-btn:hover:not(:disabled) { background: var(--pc-panel-raised); color: var(--pc-text); }
 .icon-btn:disabled { opacity: .35; cursor: default; }
 .icon-btn:focus-visible, .btn:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: 1px; }
