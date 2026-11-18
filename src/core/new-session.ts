@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { handoffArgs, mcpConfig, writePack, type McpCommand } from './handoff';
-import { MACHINE } from './platform';
+import { MACHINE, remoteFolderOk } from './platform';
 
 export type NewSessionKind = 'session' | 'agent' | 'dashboard';
 
@@ -151,7 +151,7 @@ export function newSessionChoiceOf(v: unknown): NewSessionChoice | null {
   // FD-206: a machine as ssh knows it; its folder is a POSIX path there.
   if (c.machine !== undefined && c.machine !== null && (typeof c.machine !== 'string' || !MACHINE.test(c.machine))) return null;
   const machine = typeof c.machine === 'string' ? c.machine : undefined;
-  if (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(machine ? c.folder.startsWith('/') : path.isAbsolute(c.folder))) return null;
+  if (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(machine ? remoteFolderOk(c.folder) : path.isAbsolute(c.folder))) return null;
   if (typeof c.bypass !== 'boolean' || typeof c.isolated !== 'boolean') return null;
   return { kind: c.kind, runtime: c.runtime, folder: c.folder, bypass: c.bypass, isolated: c.isolated, ...(machine ? { machine } : {}) };
 }

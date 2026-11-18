@@ -644,6 +644,8 @@ export class ConsoleHost {
         return { ok: false, error: (error as Error).message };
       }
     }
+    // FD-318 (S2-02): a session on another machine cannot read the task file written here, so nothing is typed into it.
+    if (this.remoteRuns.has(key)) return { ok: false, error: 'remote' };
     const snap = this.o.snapshot(key);
     const folder = this.folderOf(key);
     if (!snap || !folder?.exists || !this.o.packRoot) return { ok: false, error: 'no-pack' };
@@ -696,7 +698,10 @@ export class ConsoleHost {
       if (access !== 'edit') return { ok: false, reason: 'remote', detail: access };
       const there = await this.remoteFolder(key, remote.route, folder.path);
       if ('refused' in there) return { ok: false, reason: 'remote', detail: there.refused };
-      const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: saved?.bypass });
+      // FD-318 (S2-02): a held conversation continues with permission prompts there too, as it does here.
+      const heldThere = mode === 'continue' && Boolean(saved?.held);
+      if (heldThere) this.o.log(`console: ${key} continues on ${remote.route.destination} ${promptsWords(runtime.id)}: its conversation was held at ${saved!.held}`);
+      const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: heldThere ? false : saved?.bypass });
       if (local.kind !== 'run') return local.kind === 'refused' ? { ok: false, reason: local.reason, detail: local.detail } : { ok: false, reason: 'spawn' };
       const argv = remoteArgv({ route: remote.route, folder: there.path, home, argv: remoteRuntimeArgv(local.argv) });
       const r = this.manager.start(key, { argv, cwd: home, label: `${runtime.name} · ${remote.route.destination}`, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
