@@ -5,7 +5,7 @@ import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
 import type { HealthRow } from '../../core/agent-health';
 import { instanceOf } from '../../core/products';
-import { installedByWords } from '../../core/installed-by';
+import { installedByWords, templateWords } from '../../core/installed-by';
 import { runFacts } from '../../core/run-facts';
 import { agentFacts } from '../../core/agent-facts';
 import { commandRan, commandReason } from '../../core/outcome';
@@ -466,6 +466,7 @@ function Health({ s, output, detailsShown = false, report }: { s: ServiceSnapsho
         <dt>{t('health.descriptor')}</dt><dd>{s.descriptorPath}</dd>
         {/* UI wave 7: the details above name who installed it and its organization (FD-273); while they are shown, not twice. */}
         {!detailsShown && (() => { const w = installedByWords(s.descriptor); return w && <><dt>{t('health.installedBy')}</dt><dd>{t(w.code, w.params)}</dd></>; })()}
+        {(() => { const w = templateWords(wk, s.descriptor); return w && <><dt>{t('health.template')}</dt><dd>{t(w.code, w.params)}</dd></>; })() /* FD-336 */}
         {!detailsShown && s.organization !== undefined && <><dt>{t('health.organization')}</dt><dd>{s.organization ? s.organization.label : t('orgs.none')}</dd></>}
         {s.descriptor && <><dt>{t('health.origin')}</dt><dd>{s.descriptor.origin}</dd></>}
         {s.descriptor?.lifecycle.label && <><dt>{t('health.launchd')}</dt><dd>{s.descriptor.lifecycle.label}{s.launchd.pid ? ` · ${t('health.pid')} ${s.launchd.pid}` : ''}{s.launchd.disabled ? ` · ${t('health.disabled')}` : ''}</dd></>}

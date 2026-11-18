@@ -20,3 +20,24 @@ export function installedByWords(d: Pick<Descriptor, 'installedBy'> | null | und
   return { code: `installedBy.${by}`, params: { tool } };
 }
 // #endregion installed-by
+
+// #region template-copy — docs: docs/ux/scenarios.md#scn-025-run-doctor-and-read-logs
+/** FD-336 (the agents base's `patterns/template-update`, decision D-71): the extension an organization's copy writes about
+ *  its template, in its well-known (preferred) or its descriptor. */
+export const TEMPLATE_EXTENSION = 'https://fabric.passioncode.ai/agents-database/extensions/template/0.1';
+
+export interface TemplateWords { code: string; params: Record<string, string> }
+
+/** «Template X, version V, etalon E» for an agent built from an etalon, or null when it names no template. */
+export function templateWords(...sources: unknown[]): TemplateWords | null {
+  const raw = sources.map((s) => (s as { extensions?: Record<string, unknown> } | null | undefined)?.extensions?.[TEMPLATE_EXTENSION]).find((v) => v && typeof v === 'object') as Record<string, unknown> | undefined;
+  if (!raw) return null;
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 80) : '');
+  const template = str(raw.template);
+  if (!template) return null;
+  const version = str(raw.version);
+  const etalon = raw.etalon && typeof raw.etalon === 'object' ? str((raw.etalon as Record<string, unknown>).version) : '';
+  const state = ['behind', 'current', 'ahead', 'unknown', 'no-receipt'].includes(String(raw.state)) ? String(raw.state) : 'unknown';
+  return { code: `template.${state}`, params: { template, version: version || '?', etalon: etalon || '?' } };
+}
+// #endregion template-copy
