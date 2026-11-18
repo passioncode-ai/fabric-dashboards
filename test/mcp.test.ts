@@ -15,6 +15,15 @@ import { HANDED_ENV, handedEnv, HANDOVER_ID, launcherOf, liveHandover, REHAND_EN
 import * as tools from '../src/mcp/tools';
 import { tmp } from './helpers';
 
+// FD-339: operations are called through `execute` (the old tool names were retired in 0.8.203); each call its own key.
+let exSeq = 0;
+function ex(p: Record<string, unknown>): Record<string, unknown> {
+  const { name, arguments: args, ...rest } = p as { name: string; arguments?: unknown };
+  if (name === 'search' || name === 'execute' || name === 'rm_rf') return p;
+  return { ...rest, name: 'execute', arguments: { operation: name, arguments: args ?? {}, idempotencyKey: `t-${++exSeq}` } };
+}
+
+
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract', name), 'utf8'));
 const DESCRIPTOR = fixture('positive_service-descriptor.json') as Descriptor;
 const WELL_KNOWN = fixture('positive_service-well-known.json') as WellKnown;
@@ -135,7 +144,7 @@ test('open goes to the app when it is installed, to the browser when not and ask
 test('FD-109: open never falls back to a browser unless the caller asks for it, and the MCP schema says so', async () => {
   const absent = world({ installed: false });
   await assert.rejects(tools.open(absent.deps, { service: KEY }), /host_not_installed/);
-  const out = await handle(absent.deps, { id: 1, method: 'tools/call', params: { name: 'open', arguments: { service: KEY } } });
+  const out = await handle(absent.deps, { id: 1, method: 'tools/call', params: ex({ name: 'open', arguments: { service: KEY } }) });
   const result = out!.result as { isError: boolean; structuredContent: { status: string; opened_in: string; open_link: string } };
   assert.equal(result.isError, true);
   assert.equal(result.structuredContent.status, 'host_not_installed');
@@ -143,7 +152,7 @@ test('FD-109: open never falls back to a browser unless the caller asks for it, 
   assert.equal(result.structuredContent.open_link, 'fabric-dashboards://service/example-agent.default');
   assert.deepEqual(absent.calls.open, []);
   // FD-339: the schema is read through search now.
-  const found = await handle(absent.deps, { id: 2, method: 'tools/call', params: { name: 'search', arguments: { query: 'open' } } });
+  const found = await handle(absent.deps, { id: 2, method: 'tools/call', params: ex({ name: 'search', arguments: { query: 'open' } }) });
   const openTool = (found!.result as { structuredContent: { operations: { name: string; inputSchema: { properties: { fallback: { default: string } } } }[] } }).structuredContent.operations.find((t) => t.name === 'open')!;
   assert.equal(openTool.inputSchema.properties.fallback.default, 'never');
 });
@@ -221,16 +230,16 @@ test('the protocol: initialize, tools/list, a call, a refusal as isError, notifi
   const list = await handle(deps, { jsonrpc: '2.0', id: 3, method: 'tools/list' });
   assert.deepEqual((list!.result as { tools: { name: string }[] }).tools.map((t) => t.name), ['search', 'execute'], 'FD-339: two doors');
 
-  const ok = await handle(deps, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'link', arguments: { service: KEY } } });
+  const ok = await handle(deps, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: ex({ name: 'link', arguments: { service: KEY } }) });
   assert.equal((ok!.result as { structuredContent: { service: string } }).structuredContent.service, KEY);
 
-  const refused = await handle(deps, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'control', arguments: { service: KEY } } });
+  const refused = await handle(deps, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: ex({ name: 'control', arguments: { service: KEY } }) });
   assert.deepEqual(refused!.result, { content: [{ type: 'text', text: 'action is required' }], isError: true });
 
   // M-2: an unknown tool is a JSON-RPC error (-32602); an undeclared argument is refused.
-  const unknownTool = await handle(deps, { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'rm_rf' } });
+  const unknownTool = await handle(deps, { jsonrpc: '2.0', id: 6, method: 'tools/call', params: ex({ name: 'rm_rf' }) });
   assert.deepEqual(unknownTool!.error, { code: -32602, message: 'unknown tool "rm_rf"' });
-  const extra = await handle(deps, { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'link', arguments: { service: KEY, evil: 1 } } });
+  const extra = await handle(deps, { jsonrpc: '2.0', id: 8, method: 'tools/call', params: ex({ name: 'link', arguments: { service: KEY, evil: 1 } }) });
   assert.deepEqual(extra!.result, { content: [{ type: 'text', text: 'unknown argument "evil" for link' }], isError: true });
   const doctor = TOOLS.find((x) => x.name === 'doctor')!;
   assert.equal((doctor.annotations as { readOnlyHint: boolean }).readOnlyHint, false, 'M-1: doctor runs a program; never auto-approved as read-only');
@@ -253,7 +262,7 @@ test('the server speaks newline-delimited JSON-RPC over stdio', async () => {
   });
   child.stdin.write('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n');
   child.stdin.write('not json\n');
-  child.stdin.write('{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_services","arguments":{}}}\n');
+  child.stdin.write('{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"operation":"list_services","arguments":{}}}}\n');
   const deadline = Date.now() + 15_000;
   while (lines.length < 3 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
   child.kill();
@@ -293,7 +302,7 @@ test('host errors and never policy refuse before any browser open, including MCP
   for (const state of ['unknown', 'incompatible', 'handler_mismatch', 'unsupported'] as const) {
     const { deps, calls } = world();
     deps.host = async () => ({ state, application: null, observed_at: '2026-10-01T00:00:00Z' });
-    const out = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'open', arguments: { service: KEY } } });
+    const out = await handle(deps, { id: 1, method: 'tools/call', params: ex({ name: 'open', arguments: { service: KEY } }) });
     const result = out!.result as { isError: boolean; structuredContent: { status: string; opened_in: string } };
     assert.equal(result.isError, true);
     assert.equal(result.structuredContent.status, `host_${state}`);
@@ -302,7 +311,7 @@ test('host errors and never policy refuse before any browser open, including MCP
   }
   const { deps, calls } = world({ installed: false });
   for (const fallback of ['never', 'always', 1, null]) {
-    const out = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'open', arguments: { service: KEY, fallback } } });
+    const out = await handle(deps, { id: 1, method: 'tools/call', params: ex({ name: 'open', arguments: { service: KEY, fallback } }) });
     assert.equal((out!.result as { isError: boolean }).isError, true);
   }
   assert.deepEqual(calls.open, []);
@@ -415,7 +424,7 @@ test('T-9: an argument of the wrong type is refused, never replaced by its defau
     ['sessions', { machines: 'studio' }, /machines must be a list/],
     ['session_new', { bypass: 'yes' }, /bypass must be true or false/],
   ] as const) {
-    const r = await handle(deps, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) as { result: { isError?: boolean; content: { text: string }[] } };
+    const r = await handle(deps, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: ex({ name, arguments: args }) }) as { result: { isError?: boolean; content: { text: string }[] } };
     assert.equal(r.result.isError, true, `${name} ${JSON.stringify(args)}`);
     assert.match(r.result.content[0]!.text, text);
   }
@@ -445,20 +454,20 @@ test('FD-39 REQ-004: service_context hands a coding agent the live picture — s
 
 test('FD-47 DEC-0042 SH-7: service_context takes the key a session handoff\'s first call passes, and returns the console\'s rules (SH-6)', async () => {
   const { deps } = world();
-  const r = await handle(deps, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'service_context', arguments: { key: KEY } } }) as { result: { isError?: boolean; content: { text: string }[] } };
+  const r = await handle(deps, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: ex({ name: 'service_context', arguments: { key: KEY } }) }) as { result: { isError?: boolean; content: { text: string }[] } };
   assert.notEqual(r.result.isError, true, r.result.content[0]!.text);
   const c = JSON.parse(r.result.content[0]!.text) as { key: string; rules: string[] };
   assert.equal(c.key, KEY);
   assert.ok(c.rules.length >= 3 && c.rules.some((x) => /secret/i.test(x)), 'the rules live in the answer, not in the preamble');
-  const old = await handle(deps, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'service_context', arguments: { service: KEY } } }) as { result: { isError?: boolean } };
+  const old = await handle(deps, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'service_context', arguments: { service: KEY } }) }) as { result: { isError?: boolean } };
   assert.notEqual(old.result.isError, true, 'service still works for older callers');
-  const none = await handle(deps, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'service_context', arguments: {} } }) as { result: { isError?: boolean; content: { text: string }[] } };
+  const none = await handle(deps, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: ex({ name: 'service_context', arguments: {} }) }) as { result: { isError?: boolean; content: { text: string }[] } };
   assert.equal(none.result.isError, true);
   assert.match(none.result.content[0]!.text, /key is required/);
-  const both = await handle(deps, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'service_context', arguments: { key: KEY, service: 'other.default' } } }) as { result: { isError?: boolean; content: { text: string }[] } };
+  const both = await handle(deps, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: ex({ name: 'service_context', arguments: { key: KEY, service: 'other.default' } }) }) as { result: { isError?: boolean; content: { text: string }[] } };
   assert.equal(both.result.isError, true, 'two different services is a mistake, not a choice');
   assert.match(both.result.content[0]!.text, /name different services/);
-  const empty = await handle(deps, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'service_context', arguments: { key: '', service: KEY } } }) as { result: { isError?: boolean } };
+  const empty = await handle(deps, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: ex({ name: 'service_context', arguments: { key: '', service: KEY } }) }) as { result: { isError?: boolean } };
   assert.notEqual(empty.result.isError, true, 'an empty key is no key: service is used');
 });
 
@@ -563,10 +572,10 @@ test('FD-85: a call that arrives while the server leaves for an update is answer
   output.on('data', (chunk) => { buffer += String(chunk); let i: number; while ((i = buffer.indexOf('\n')) >= 0) { lines.push(JSON.parse(buffer.slice(0, i))); buffer = buffer.slice(i + 1); } });
   let exited: number | null = null;
   serve(world().deps, input, output, { exit: (code) => { exited = code; }, watch, signals: false });
-  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } })}\n`);
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) })}\n`);
   const until = async (ok: () => boolean) => { const end = Date.now() + 5000; while (!ok()) { assert.ok(Date.now() < end, 'in time'); await new Promise((r) => setTimeout(r, 5)); } };
   await until(() => lines.some((l) => l.id === 1) && checks >= 2);
-  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } })}\n`);
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) })}\n`);
   await until(() => lines.some((l) => l.id === 2));
   const two = lines.find((l) => l.id === 2)!;
   assert.equal(two.result!.isError, true);
@@ -624,10 +633,10 @@ test('FD-109: after an update the stale server hands the session to the new copy
   const s = session(() => { started += 1; return fresh.child; }, 3);
   s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', clientInfo: { name: 'claude-code' } } });
   s.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
-  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   await s.until(() => s.lines.some((l) => l.id === 2));
   assert.equal(s.lines.find((l) => l.id === 2)!.result!.isError, undefined, 'the old code answers while it is current');
-  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   await s.until(() => s.lines.some((l) => l.id === 3));
   assert.equal(started, 1);
   assert.equal(s.lines.find((l) => l.id === 3)!.result!.answeredBy, '1.1.0', 'the new version answered');
@@ -646,7 +655,7 @@ test('FD-109: an answer of the old code still in the pipe does not stop the hand
   const fresh = newServer();
   const s = session(() => fresh.child, 1);
   s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
-  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } }); // right behind, unflushed
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) }); // right behind, unflushed
   await s.until(() => s.lines.some((l) => l.id === 2));
   assert.equal(s.lines.find((l) => l.id === 2)!.result!.answeredBy, '1.1.0');
   await s.until(() => s.lines.some((l) => l.id === 1)); // JSON-RPC matches by id; the old answer still arrives
@@ -656,7 +665,7 @@ test('FD-109: a hand-over the new copy does not take answers the waiting call st
   const silent = newServer({ answers: false });
   const s = session(() => { setTimeout(() => silent.child.emit('exit', 1, null), 20); return silent.child; }, 1);
   s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
-  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   await s.until(() => s.lines.some((l) => l.id === 2));
   assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.stale, true);
   await s.until(() => s.exited() !== null);
@@ -687,12 +696,12 @@ test('FD-150: when the copy behind the relay goes stale too, the first server st
   let started = 0;
   const s = session(() => { started += 1; return queue.shift() ?? null; }, 1);
   s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientInfo: { name: 'claude-code' } } });
-  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   await s.until(() => s.lines.some((l) => l.id === 2));
   assert.equal(started, 2, 'one relay, two copies behind it in turn, never a chain');
   assert.equal(s.lines.find((l) => l.id === 2)!.result!.answeredBy, '1.2.0', 'the copy installed now answered the call the stale one left');
   assert.deepEqual((second.read[0] as { params?: unknown }).params, { clientInfo: { name: 'claude-code' } }, 'the client\'s own initialize again');
-  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   await s.until(() => s.lines.some((l) => l.id === 3));
   assert.equal(s.lines.filter((l) => l.id === 2).length, 1, 'answered once');
   assert.equal(s.exited(), null, 'the session goes on');
@@ -702,7 +711,7 @@ test('FD-150: copies that go stale again at once end the session with a stale an
   let started = 0;
   const s = session(() => { started += 1; return newServer({ staleOnCall: true }).child; }, 1);
   s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
-  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   await s.until(() => s.lines.some((l) => l.id === 2));
   assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.stale, true);
   assert.equal(started, REHAND_MAX + 1);
@@ -719,7 +728,7 @@ test('FD-150: a handed server that can be started again leaves its call unanswer
     let exited: number | null = null;
     serve(world().deps, input, output, { exit: (code) => { exited = code; }, watch, signals: false, handover: () => null, rehand });
     input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })}\n`);
-    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'list_services', arguments: {} } })}\n`);
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) })}\n`);
     const end = Date.now() + 5000;
     while (exited === null) { assert.ok(Date.now() < end, 'in time'); await new Promise((r) => setTimeout(r, 5)); }
     assert.equal(exited, rehand ? REHAND_EXIT : 0);
@@ -731,12 +740,12 @@ test('FD-150: a handed server that can be started again leaves its call unanswer
 test('FD-109: no hand-over without a launcher or before the client initialized; the launcher sits beside app.asar on every system', async () => {
   const s = session(() => null, 1);
   s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
-  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   await s.until(() => s.lines.some((l) => l.id === 2));
   assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.stale, true);
   let asked = 0;
   const t = session(() => { asked += 1; return null; }, 1);
-  t.send({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  t.send({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   await t.until(() => t.lines.some((l) => l.id === 9));
   assert.equal(asked, 0, 'a session that never initialized has nothing to repeat');
   assert.equal(launcherOf('/Applications/Fabric Dashboards.app/Contents/Resources/app.asar/out/main/mcp/server.js', 'darwin'), '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp');
@@ -806,13 +815,13 @@ test('FD-110 (MD-10): control without a decision still runs as the caller\'s act
   const w = world();
   w.deps.now = () => Date.now();
   w.deps.recordDecision = (row) => rows.push(row);
-  const plain = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action: 'start' } } });
+  const plain = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'control', arguments: { service: KEY, action: 'start' } }) });
   assert.notEqual((plain!.result as { structuredContent?: { code?: string } }).structuredContent?.code, 'decision-invalid');
   assert.deepEqual(rows, [], 'nothing to record for the caller\'s own act');
   const ran = w.calls.launchctl.length;
   assert.ok(ran > 0, 'it ran');
   const decision = { by: 'operator', via: 'relayed-instruction', action: 'start', target: KEY, instruction: 'Agent: Start example-agent? Operator: yes', at };
-  await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action: 'start' }, _meta: { decision } } });
+  await handle(w.deps, { id: 2, method: 'tools/call', params: ex({ name: 'control', arguments: { service: KEY, action: 'start' }, _meta: { decision } }) });
   assert.equal(rows.length, 1);
   assert.deepEqual({ ...rows[0], recordedAt: undefined }, { recordedAt: undefined, tool: 'control', action: 'start', target: KEY, by: 'operator', via: 'relayed-instruction', caller: 'stdio', instruction: decision.instruction, decidedAt: at });
   assert.ok(w.calls.launchctl.length > ran, 'and ran');
@@ -833,7 +842,7 @@ test('FD-110 (AP-2): an invalid decision, or one that cannot be recorded, is ref
   for (const [decision, why] of bad) {
     const w = world();
     w.deps.now = () => now;
-    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action: 'stop' }, _meta: { decision } } });
+    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'control', arguments: { service: KEY, action: 'stop' }, _meta: { decision } }) });
     const r = out!.result as { isError: boolean; structuredContent: { code: string; message: string } };
     assert.equal(r.isError, true);
     assert.equal(r.structuredContent.code, 'decision-invalid');
@@ -843,7 +852,7 @@ test('FD-110 (AP-2): an invalid decision, or one that cannot be recorded, is ref
   const w = world();
   w.deps.now = () => now;
   w.deps.recordDecision = () => { throw new Error('disk full'); };
-  const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'update', arguments: { service: KEY }, _meta: { decision: { ...good, action: 'update' } } } });
+  const out = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'update', arguments: { service: KEY }, _meta: { decision: { ...good, action: 'update' } } }) });
   assert.equal((out!.result as { structuredContent: { code: string } }).structuredContent.code, 'decision-not-recorded');
   assert.deepEqual(w.calls.run, [], 'an act whose decision is not on record does not happen');
 });
@@ -862,16 +871,16 @@ test('ADR-0025: console_new and console_fix reach the running app through its ch
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-chan-mcp-'));
   const w = world();
   w.deps.settingsFile = () => path.join(dir, 'settings.json');
-  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'console_new', arguments: { service: KEY } } });
+  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'console_new', arguments: { service: KEY } }) });
   assert.equal((closed!.result as { isError: boolean }).isError, true);
   assert.match((closed!.result as { content: { text: string }[] }).content[0]!.text, /app-not-running/);
   const asked: unknown[] = [];
   const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => { asked.push({ op: r.op, service: r.service, task: r.task }); return r.service === KEY ? { ok: true, consoleKey: r.service } : { ok: false, code: 'no-folder' }; } });
   try {
-    const out = await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'console_fix', arguments: { service: KEY, kind: 'audit', findings: 'It relies on Relay, which does not answer.' } } });
+    const out = await handle(w.deps, { id: 2, method: 'tools/call', params: ex({ name: 'console_fix', arguments: { service: KEY, kind: 'audit', findings: 'It relies on Relay, which does not answer.' } }) });
     assert.deepEqual((out!.result as { structuredContent: unknown }).structuredContent, { started: true, console: KEY });
     assert.deepEqual(asked, [{ op: 'console.fix', service: KEY, task: { kind: 'audit', output: 'It relies on Relay, which does not answer.' } }]);
-    const bad = await handle(w.deps, { id: 3, method: 'tools/call', params: { name: 'console_new', arguments: { service: KEY }, _meta: { decision: { by: 'operator', via: 'relayed-instruction', action: 'start', instruction: 'x', at: new Date().toISOString() } } } });
+    const bad = await handle(w.deps, { id: 3, method: 'tools/call', params: ex({ name: 'console_new', arguments: { service: KEY }, _meta: { decision: { by: 'operator', via: 'relayed-instruction', action: 'start', instruction: 'x', at: new Date().toISOString() } } }) });
     assert.equal((bad!.result as { structuredContent: { code: string } }).structuredContent.code, 'decision-invalid', 'a decision for another action starts nothing');
     assert.equal(asked.length, 1);
   } finally {
@@ -884,14 +893,14 @@ test('FD-166: consoles reads the open consoles through the channel, each with th
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-chan-list-'));
   const w = world();
   w.deps.settingsFile = () => path.join(dir, 'settings.json');
-  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'consoles', arguments: {} } });
+  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'consoles', arguments: {} }) });
   assert.equal((closed!.result as { isError: boolean }).isError, true);
   assert.match((closed!.result as { content: { text: string }[] }).content[0]!.text, /app-not-running/);
   const row = { row: `c:${KEY}:1762531200000`, consoleKey: KEY, service: KEY, runtime: 'claude-code', folder: '/w/agent', sessionId: null, runtimeSessionId: '0f3c2a9e-1b2c-4d5e-8f90-a1b2c3d4e5f6', since: '2026-11-07T16:00:00.000Z' };
   const asked: string[] = [];
   const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => { asked.push(r.op); return r.op === 'console.list' ? { ok: true, consoles: [row] } : { ok: false, code: 'unexpected' }; } });
   try {
-    const out = await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'consoles', arguments: {} } });
+    const out = await handle(w.deps, { id: 2, method: 'tools/call', params: ex({ name: 'consoles', arguments: {} }) });
     const got = (out!.result as { structuredContent: { consoles: (typeof row & { open_link: string })[] } }).structuredContent.consoles;
     assert.deepEqual(asked, ['console.list']);
     assert.equal(got.length, 1);
@@ -909,7 +918,7 @@ test('FD-247 step 8: sessions reads the whole Sessions list through the channel,
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-chan-sessions-'));
   const w = world();
   w.deps.settingsFile = () => path.join(dir, 'settings.json');
-  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'sessions', arguments: {} } });
+  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'sessions', arguments: {} }) });
   assert.match((closed!.result as { content: { text: string }[] }).content[0]!.text, /app-not-running/);
   const base = { folder: '/w/a', agent: 'claude-code', account: 'Work', context: null, state: 'running-background', group: 'running', origin: 'switchboard', startedAt: '2026-11-15T10:00:00.000Z', endedAt: null, actions: [], console: null };
   const sessions = [
@@ -921,7 +930,7 @@ test('FD-247 step 8: sessions reads the whole Sessions list through the channel,
   const asked: string[] = [];
   const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => { asked.push(r.op); return r.op === 'sessions.list' ? { ok: true, result: { sessions, machines, switchboard: true, degraded: [] } } : { ok: false, code: 'unexpected' }; } });
   try {
-    const call = async (args: Record<string, unknown>) => (await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'sessions', arguments: args } }))!.result as { structuredContent: { sessions: { id: string; open_link: string }[]; shown: number; total: number; machines: unknown[]; untrusted: { fields: string[] } } };
+    const call = async (args: Record<string, unknown>) => (await handle(w.deps, { id: 2, method: 'tools/call', params: ex({ name: 'sessions', arguments: args }) }))!.result as { structuredContent: { sessions: { id: string; open_link: string }[]; shown: number; total: number; machines: unknown[]; untrusted: { fields: string[] } } };
     const all = (await call({})).structuredContent;
     assert.deepEqual(asked, ['sessions.list']);
     assert.equal(all.total, 3);
@@ -1008,7 +1017,7 @@ test('FD-167: control refuses a system daemon of this space before launchctl cha
   const w = world();
   w.deps.daemons = { isSystem: (label) => label === DESCRIPTOR.lifecycle.label };
   for (const action of ['start', 'stop', 'restart']) {
-    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action } } });
+    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'control', arguments: { service: KEY, action } }) });
     const res = out!.result as { isError: boolean; content: { text: string }[] };
     assert.equal(res.isError, true, action);
     assert.match(res.content[0]!.text, /system service of this space.*studio\.service\.control/);
@@ -1023,7 +1032,7 @@ test('FD-236 (5): console_new tells the calling agent its start was held (its co
   w.deps.settingsFile = () => path.join(dir, 'settings.json');
   const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => ({ ok: true, consoleKey: r.service, held: true }) });
   try {
-    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'console_new', arguments: { service: KEY } } });
+    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'console_new', arguments: { service: KEY } }) });
     const sc = (out!.result as { structuredContent: { started: boolean; held?: boolean; held_why?: string } }).structuredContent;
     assert.equal(sc.started, true);
     assert.equal(sc.held, true);
@@ -1035,7 +1044,7 @@ test('FD-270: control refuses a job the local lifecycle broker enrolls and names
   const w = world();
   w.deps.brokers = { targetOf: (label) => (label === DESCRIPTOR.lifecycle.label ? 'sample.service' : null) };
   for (const action of ['start', 'stop', 'restart']) {
-    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action } } });
+    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'control', arguments: { service: KEY, action } }) });
     const res = out!.result as { isError: boolean; content: { text: string }[] };
     assert.equal(res.isError, true, action);
     assert.match(res.content[0]!.text, /local lifecycle broker \(target sample\.service\).*lifecycle\.ensure_running/);
@@ -1045,11 +1054,11 @@ test('FD-270: control refuses a job the local lifecycle broker enrolls and names
 
 test('FD-181: list_services names the launchd domain: gui, system for a system daemon of this space, null when unsupervised', { skip: process.platform !== 'darwin' && 'launchd is read only on macOS (FD-37)' }, async () => {
   const w = world();
-  const gui = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  const gui = await handle(w.deps, { id: 1, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   const one = (r: unknown) => ((r as { result: { structuredContent: { services: { key: string; launchd_domain: string | null }[] } } }).result.structuredContent.services.find((s) => s.key === KEY)!);
   assert.equal(one(gui).launchd_domain, 'gui');
   w.deps.daemons = { isSystem: (label) => label === DESCRIPTOR.lifecycle.label };
-  const sys = await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  const sys = await handle(w.deps, { id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   assert.equal(one(sys).launchd_domain, 'system');
 });
 
@@ -1105,7 +1114,7 @@ test('Wave 5b (FD-236 (3)): a call that gives no answer in time ends in a typed 
 
 test('FD-339: two doors: search finds operations with a schema-valid example, execute runs them through the same checks', async () => {
   const { deps } = world();
-  const all = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'search', arguments: { limit: 50 } } });
+  const all = await handle(deps, { id: 1, method: 'tools/call', params: ex({ name: 'search', arguments: { limit: 50 } }) });
   const page = (all!.result as { structuredContent: { operations: { name: string; effect: string; gate: string; example: { operation: string; arguments: Record<string, unknown> } }[]; total: number; next: string | null } }).structuredContent;
   assert.equal(page.total, TOOLS.length);
   assert.ok(page.operations.length <= 50);
@@ -1116,19 +1125,19 @@ test('FD-339: two doors: search finds operations with a schema-valid example, ex
   }
   assert.equal(page.operations.find((o) => o.name === 'control')!.gate, 'relayed');
   assert.equal(page.operations.find((o) => o.name === 'list_services')!.effect, 'read');
-  const narrowed = await handle(deps, { id: 2, method: 'tools/call', params: { name: 'search', arguments: { query: 'dashboard link' } } });
+  const narrowed = await handle(deps, { id: 2, method: 'tools/call', params: ex({ name: 'search', arguments: { query: 'dashboard link' } }) });
   assert.ok((narrowed!.result as { structuredContent: { operations: { name: string }[] } }).structuredContent.operations.some((o) => o.name === 'link'));
 
-  const ran = await handle(deps, { id: 3, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'link', arguments: { service: KEY } } } });
+  const ran = await handle(deps, { id: 3, method: 'tools/call', params: ex({ name: 'execute', arguments: { operation: 'link', arguments: { service: KEY } } }) });
   assert.equal((ran!.result as { structuredContent: { service: string } }).structuredContent.service, KEY);
-  const unknown = await handle(deps, { id: 4, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'rm_rf' } } });
+  const unknown = await handle(deps, { id: 4, method: 'tools/call', params: ex({ name: 'execute', arguments: { operation: 'rm_rf' } }) });
   assert.equal((unknown!.result as { structuredContent: { code: string } }).structuredContent.code, 'unknown-operation');
-  const noKey = await handle(deps, { id: 5, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'control', arguments: { service: KEY, action: 'restart' } } } });
+  const noKey = await handle(deps, { id: 5, method: 'tools/call', params: ex({ name: 'execute', arguments: { operation: 'control', arguments: { service: KEY, action: 'restart' } } }) });
   assert.equal((noKey!.result as { structuredContent: { code: string } }).structuredContent.code, 'idempotency-required');
-  const bad = await handle(deps, { id: 6, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'link', arguments: { service: KEY, evil: 1 } } } });
+  const bad = await handle(deps, { id: 6, method: 'tools/call', params: ex({ name: 'execute', arguments: { operation: 'link', arguments: { service: KEY, evil: 1 } } }) });
   assert.equal((bad!.result as { isError: boolean }).isError, true, 'the operation\'s own checks still hold');
   // The old names keep working for one release.
-  const old = await handle(deps, { id: 7, method: 'tools/call', params: { name: 'link', arguments: { service: KEY } } });
+  const old = await handle(deps, { id: 7, method: 'tools/call', params: ex({ name: 'link', arguments: { service: KEY } }) });
   assert.equal((old!.result as { structuredContent: { service: string } }).structuredContent.service, KEY);
 });
 
@@ -1139,4 +1148,17 @@ test('FD-339: an idempotency key answers its first result and refuses other argu
   i.remember('k1', 'control', { a: 1 }, { done: true });
   assert.deepEqual(i.check('k1', 'control', { a: 1 }), { kind: 'repeat', result: { done: true } });
   assert.deepEqual(i.check('k1', 'control', { a: 2 }), { kind: 'conflict' });
+});
+
+test('FD-339: an old tool name is refused retired-name with the execute call that runs it; an unknown name stays a protocol error', async () => {
+  const { deps } = world();
+  const old = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  const r = old!.result as { isError: boolean; structuredContent: { code: string; message: string } };
+  assert.equal(r.isError, true);
+  assert.equal(r.structuredContent.code, 'retired-name');
+  assert.match(r.structuredContent.message, /call execute with \{"operation": "list_services"/);
+  const unknown = await handle(deps, { id: 2, method: 'tools/call', params: { name: 'rm_rf' } });
+  assert.equal((unknown as { error: { code: number } }).error.code, -32602);
+  const viaDoor = await handle(deps, { id: 3, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
+  assert.ok(!(viaDoor!.result as { isError?: boolean }).isError, 'the same operation runs through execute');
 });

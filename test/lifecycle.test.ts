@@ -25,6 +25,15 @@ import { codeFile, StaleWatch } from '../src/mcp/stale';
 import { APP_UPDATE_EVERY_MS, CHECK_EVERY_MS, quietCheck } from '../src/core/version';
 import { tmp } from './helpers';
 
+// FD-339: operations are called through `execute` (the old tool names were retired in 0.8.203); each call its own key.
+let exSeq = 0;
+function ex(p: Record<string, unknown>): Record<string, unknown> {
+  const { name, arguments: args, ...rest } = p as { name: string; arguments?: unknown };
+  if (name === 'search' || name === 'execute' || name === 'rm_rf') return p;
+  return { ...rest, name: 'execute', arguments: { operation: name, arguments: args ?? {}, idempotencyKey: `t-${++exSeq}` } };
+}
+
+
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract', name), 'utf8'));
 const DESCRIPTOR = fixture('positive_service-descriptor.json') as Descriptor;
 const READY: WellKnown = { ...(fixture('positive_service-well-known.json') as WellKnown), status: 'ready', degraded: [] };
@@ -405,7 +414,7 @@ test('LC-10: a call written just before stdin closes is still answered, then the
   const app = fakeInstall('1.0.0');
   const services = tmp('fd-mcp-svc-');
   const s = speak(app.server, { FABRIC_SERVICES_DIR: services });
-  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   s.child.stdin.end();
   const exit = await s.exited;
   assert.equal(exit.code, 0);
@@ -421,7 +430,7 @@ test('LC-10: a session that ends mid-command takes the command\'s whole process 
   const script = `trap '' TERM; sleep 60 & echo $! > '${pidFile}'; wait`;
   fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify({ ...DESCRIPTOR, commands: { doctor: ['/bin/sh', '-c', script] } }));
   const s = speak(app.server, { FABRIC_SERVICES_DIR: services });
-  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'doctor', arguments: { service: 'example-agent.default' } } });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: ex({ name: 'doctor', arguments: { service: 'example-agent.default' } }) });
   const deadline = Date.now() + 10_000;
   while (!fs.existsSync(pidFile) || !fs.readFileSync(pidFile, 'utf8').trim()) {
     assert.ok(Date.now() < deadline, 'the doctor started');
@@ -448,7 +457,7 @@ test('FD-37 LC-10 (Windows): a session that ends mid-command takes the command\'
   const doctor = [process.execPath, '-e', `require('child_process').spawn(process.execPath, ['-e', ${JSON.stringify(grandchild)}], { detached: true, stdio: 'ignore' }).unref(); setInterval(() => {}, 1000)`];
   fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify({ ...DESCRIPTOR, commands: { doctor } }));
   const s = speak(app.server, { FABRIC_SERVICES_DIR: services });
-  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'doctor', arguments: { service: 'example-agent.default' } } });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: ex({ name: 'doctor', arguments: { service: 'example-agent.default' } }) });
   const deadline = Date.now() + 15_000;
   while (!fs.existsSync(pidFile) || !fs.readFileSync(pidFile, 'utf8').trim()) {
     assert.ok(Date.now() < deadline, 'the doctor started');
@@ -468,11 +477,11 @@ test('LC-10: after an update replaces the bundle, the old server answers stale a
   const app = fakeInstall('1.0.0');
   const services = tmp('fd-mcp-svc-');
   const s = speak(app.server, { FABRIC_SERVICES_DIR: services });
-  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   assert.equal((await s.reply(1)).result!.isError, undefined);
   app.update('1.1.0');
   const at = Date.now();
-  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   const stale = (await s.reply(2)).result!;
   assert.equal(stale.isError, true);
   assert.deepEqual(stale.structuredContent, {
@@ -500,14 +509,14 @@ test('FD-109 LC-10: with the installed launcher present, the stale server hands 
   assert.equal((await s.reply(1)).result!.serverInfo!.version, '1.0.0');
   s.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
   app.update('1.1.0');
-  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   const two = (await s.reply(2)).result!;
   assert.equal(two.isError, undefined, 'answered by the new copy, not stale');
   for (const end = Date.now() + 5000; !/handing the session to the installed 1\.1\.0/.test(stderr);) { // stderr is its own pipe
     assert.ok(Date.now() < end, `the hand-over is logged: ${stderr}`);
     await new Promise((r) => setTimeout(r, 20));
   }
-  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   assert.equal((await s.reply(3)).result!.isError, undefined, 'and keeps answering');
   const at = Date.now();
   s.child.stdin!.end();

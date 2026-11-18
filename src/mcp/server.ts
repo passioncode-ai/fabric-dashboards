@@ -213,7 +213,7 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
       });
     }
     case 'ping': return reply({});
-    case 'tools/list': return reply({ tools: DOORS }); // FD-339: two doors; the old names stay callable one release
+    case 'tools/list': return reply({ tools: DOORS }); // FD-339: two doors
     case 'tools/call': {
       const name = String(params.name ?? '');
       const args = (params.arguments && typeof params.arguments === 'object' ? params.arguments : {}) as Args;
@@ -243,7 +243,10 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
         }
         return callTool(operation, inner);
       }
-      return callTool(name, args);
+      // FD-339: the old tool names were retired in 0.8.203 after one release beside the two doors. A call by one is
+      // refused with the door that runs it, so a client that cached the old list learns the new way in one answer.
+      if (TOOLS.some((t) => t.name === name)) return refuse('retired-name', `${name} is now an operation: call execute with {"operation": ${JSON.stringify(name)}, "arguments": {...}}; search lists every operation`);
+      return fail(-32602, `unknown tool ${JSON.stringify(name)}`);
     }
     default: return fail(-32601, `method not found: ${method}`);
   }
