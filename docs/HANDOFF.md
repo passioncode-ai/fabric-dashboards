@@ -7,6 +7,13 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.200: the terminal, a console without a local copy, Continue in a Switchboard home, two MCP doors (2026-11-18)
+
+FD-333 (PR #676), FD-326 (#677), FD-334 (#678), FD-339 (#679); 0.8.199 published (run 44363277392, 16 assets). Gates
+`FD_SKIP_LAUNCHD=1 npm run check` green on each (last 1513 pass, 0 fail). E2E refused: the screen was locked (FD-325).
+Next task: FD-335 (the launch UI on the built app, needs an unlocked screen), FD-337 (waits for Switchboard's answer on
+thread `361695c0`), FD-336, FD-338; FD-322 not before 2026-11-25; old MCP tool names retired in the release after next.
+
 ## 0.8.199: wave A, false alarms and remote consoles (2026-11-18)
 
 FD-327 (an agent's own incomplete well-known reads degraded), FD-329 (a sibling copy named), FD-328 (a placed agent's

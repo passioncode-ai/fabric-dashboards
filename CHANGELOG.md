@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.200 - 2026-11-18
+
+### Added
+- FD-333: an agent's console shown in full fills the whole window, as Fabric's and Inbox's terminals do: the agent list,
+  the strip of open agents and the agent's header step aside under a thin toolbar; closing the console (its button or
+  Esc) brings them back. The panel form stays a choice.
+- FD-334: an agent whose code is not on this computer (a cloud agent with a GitHub repository) offers Clone and open:
+  Switchboard clones it with your own `gh` into `~/DATA/<name>` and the console opens there. MCP `console_choose` takes
+  `clone: true`.
+- FD-339: the MCP server has two doors, `search` and `execute` (the operator's rule of 2026-11-18). Operations keep their
+  names, checks and the operator's decision; an act on another agent takes an idempotency key. The old tool names keep
+  working for one release.
+
+### Fixed
+- FD-326: Continue on a session whose conversation lives in one of Switchboard's homes (a hosted or managed launch)
+  resumes that conversation there through Switchboard, instead of starting a new one and losing its context.
+
 ## 0.8.199 - 2026-11-18
 
 ### Fixed
