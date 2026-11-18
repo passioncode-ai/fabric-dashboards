@@ -7,6 +7,12 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.199: wave A, false alarms and remote consoles (2026-11-18)
+
+FD-327 (an agent's own incomplete well-known reads degraded), FD-329 (a sibling copy named), FD-328 (a placed agent's
+console through that machine's Switchboard): PRs #672, #674; the release bumps 0.8.199 and service-host 0.11.0. Gate
+`FD_SKIP_LAUNCHD=1 npm run check` 1505 pass, 0 fail at load average 320. Next task: FD-333 (the full-window terminal).
+
 ## Waves of 2026-11-18 started (2026-11-18)
 
 The operator asked to close every task in waves and release: [plan](plans/2026-11-18-waves/README.md). Done: FD-327 and
