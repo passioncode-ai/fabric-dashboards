@@ -26,6 +26,13 @@ service data.
   server alike (`RemoteTokenLatch`). A usage report, a load report, an events feed or a dashboard sign-in is
   never read from a port or origin that answers as something else, and a sign-in reads the
   service's state at that moment, not when its page was first opened.
+- **Writes descriptors from a registration link** (FD-193, SCN-121): `fabric-dashboards://register?origin=…&invite=…`
+  carries a one-time invitation code, never a token. Only after the person confirms, the main process makes a P-256 key
+  (its private half sealed by the app's own Keychain item, `safeStorage`), redeems the code at `<origin>/auth/enroll`
+  (no redirect followed), writes the host token it receives to a 0600 file in the services folder, and writes one
+  online descriptor for the showcase and for each agent address its well-known names, sending the token only to
+  addresses under the showcase's own parent domain. A descriptor already installed for another origin is never
+  overwritten. The code and the token are never logged.
 - **Watches the estate's versions** (FD-30, [ADR-0018](docs/adr/0018-estate-updates-from-inside-the-app.md)),
   90 s after start and every 6 hours while *Watch the contract and skill versions* is on (on by
   default). The skills part runs only where the `sshlg-skills` family is installed — its launcher

@@ -1,7 +1,7 @@
 // Fabric Dashboards main process. Built like Fabric Inbox's shell: one main
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell, systemPreferences } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, net, Notification, session, shell, systemPreferences } from 'electron';
 import { joinLink } from '../core/join';
 import { pathToFileURL } from 'node:url';
 import { guardIpc } from './ipc-guard';
@@ -50,6 +50,7 @@ import { readLoad, type LoadEntry } from '../core/load';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { uninstall as runUninstall } from './uninstall-flow';
+import { registerFromLink } from './register-flow';
 import { channelAnswers } from './channel-answers';
 import { alertWords } from '../core/outage-alerts';
 import { isOldSwitchboard } from '../core/switchboard';
@@ -1311,6 +1312,14 @@ if (!app.requestSingleInstanceLock()) {
         return;
       }
       const { target } = result;
+      if (target.page === 'register') {
+        // FD-193: the person confirms, then the showcase's agents are written as descriptors the next scan reads.
+        showWindow();
+        void registerFromLink({ lang, liveWindow: () => window && !window.isDestroyed() ? window : null, log, userData: app.getPath('userData'), fetch: (u, i) => net.fetch(String(u), i) }, target)
+          .then((r) => { if (r?.ok) navigate({ page: 'overview' }); })
+          .catch((error: Error) => log(`register: ${error.message}`));
+        return;
+      }
       if (target.page === 'overview') navigate({ page: 'overview' }); // U-5: the overview, not whatever page was open
       else navigate(target);
       // Issue #335: a link from a program in the background opens behind the active app; the Dock icon says so.

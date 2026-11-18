@@ -9,6 +9,7 @@
 // The key syntax, the safe path and the link builder are shared with Fabric
 // (@passioncode-ai/fabric-service-host → links), so the two apps cannot disagree on the form.
 import { isServiceKey, portOf, safePath, SCHEME, serviceLink, type Descriptor } from '@passioncode-ai/fabric-service-host';
+import { parseRegisterLink } from './register';
 
 export { isServiceKey, safePath, SCHEME } from '@passioncode-ai/fabric-service-host';
 
@@ -17,7 +18,9 @@ export type DeepLink =
   | { page: 'activity' }
   /** FD-166: one coding session's page in the Sessions mode, by its row id; without one, the list. */
   | { page: 'sessions'; key?: string }
-  | { page: 'overview' };
+  | { page: 'overview' }
+  /** FD-193: register an organization's showcase and its agents on this Mac; the main process asks the person first. */
+  | { page: 'register'; origin: string; invite: string };
 
 export type DeepLinkResult = { ok: true; target: DeepLink } | { ok: false; reason: string };
 
@@ -35,6 +38,7 @@ const PATH_REFUSED = 'path must be a path on the service, starting with one /';
  * `fabric-dashboards://open?url=http://127.0.0.1:<port>/…`          (the service found by its origin)
  * `fabric-dashboards://activity`, `fabric-dashboards://` (overview)
  * `fabric-dashboards://sessions[?id=<row>]`                         (FD-166: a session's page, as MCP `consoles` hands out)
+ * `fabric-dashboards://register?origin=https://<host>&invite=<code>` (FD-193: an organization's showcase, src/core/register.ts)
  */
 export function parseDeepLink(raw: string, known: Known): DeepLinkResult {
   let url: URL;
@@ -50,6 +54,10 @@ export function parseDeepLink(raw: string, known: Known): DeepLinkResult {
   if (verb === '' || verb === 'overview') return { ok: true, target: { page: 'overview' } };
   if (verb === 'activity') return { ok: true, target: { page: 'activity' } };
   if (verb === 'sessions') return sessionsForm(url);
+  if (verb === 'register') {
+    const link = parseRegisterLink(url);
+    return 'reason' in link ? { ok: false, reason: link.reason } : { ok: true, target: { page: 'register', ...link } };
+  }
   if (verb === 'service' && url.hostname) return serviceForm(url, known);
   if (verb !== 'open') return { ok: false, reason: `unknown link verb ${quote(verb, 40)}` };
 
