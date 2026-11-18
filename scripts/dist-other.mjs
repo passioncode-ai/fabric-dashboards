@@ -200,7 +200,7 @@ c.stdout.on('data', (d) => { out += d; if (out.split('\\n').some((l) => { try { 
 c.stderr.on('data', (d) => { err += d; });
 c.on('exit', () => finish('exited'));
 setTimeout(() => finish('timeout'), 30000);
-for (const m of [{ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }, { jsonrpc: '2.0', method: 'notifications/initialized' }, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } }]) c.stdin.write(JSON.stringify(m) + '\\n');
+for (const m of [{ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }, { jsonrpc: '2.0', method: 'notifications/initialized' }, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'list_services', arguments: {} } } }]) c.stdin.write(JSON.stringify(m) + '\\n');
 `);
     const run = spawnSync(process.execPath, [driver], { encoding: 'utf8', timeout: 45_000, windowsHide: true });
     const report = (() => { try { return JSON.parse(run.stdout); } catch { return null; } })();
@@ -209,9 +209,9 @@ for (const m of [{ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }, { 
     const call = lines.find((m) => m.id === 2);
     const tail = `${report?.err ?? run.stderr ?? ''}`.slice(-400);
     requireThat(hello?.result?.serverInfo?.version === version, `The packaged MCP launcher did not answer initialize: ${tail || (run.stdout || String(run.error)).slice(0, 400)}`);
-    requireThat(call?.result && !call.result.isError && Array.isArray(call.result.structuredContent?.services), `The packaged MCP server did not answer tools/call list_services itself (${report?.why ?? 'no report'}): ${JSON.stringify(call ?? null).slice(0, 300)} ${tail}`);
+    requireThat(call?.result && !call.result.isError && Array.isArray(call.result.structuredContent?.services), `The packaged MCP server did not answer execute list_services itself (${report?.why ?? 'no report'}): ${JSON.stringify(call ?? null).slice(0, 300)} ${tail}`);
     requireThat(!/handing the session/.test(report?.err ?? ''), `The packaged MCP server handed its session on with no update (FD-133): ${tail}`);
-    out.mcpLauncher = `resources/bin/${t.launcher} answers initialize as ${hello.result.serverInfo.name} ${version} and tools/call list_services itself`;
+    out.mcpLauncher = `resources/bin/${t.launcher} answers initialize as ${hello.result.serverInfo.name} ${version} and execute list_services itself`;
   } finally {
     rmSync(services, { recursive: true, force: true });
   }

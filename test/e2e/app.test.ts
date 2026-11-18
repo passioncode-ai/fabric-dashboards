@@ -220,9 +220,9 @@ test('a deep link at launch opens the service page signed in; the MCP server see
     const mcp = spawnSync(process.execPath, [path.join(ROOT, 'out/main/mcp/server.js')], {
       input: [
         '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}',
-        '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_services","arguments":{}}}',
-        `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"link","arguments":{"url":"http://127.0.0.1:${port}/?from=agent"}}}`,
-        '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"activity","arguments":{"service":"sample.default"}}}',
+        '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"operation":"list_services","arguments":{}}}}',
+        `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute","arguments":{"operation":"link","arguments":{"url":"http://127.0.0.1:${port}/?from=agent"}}}}`,
+        '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"execute","arguments":{"operation":"activity","arguments":{"service":"sample.default"}}}}',
         '',
       ].join('\n'),
       encoding: 'utf8', timeout: 20_000, env: { ...process.env, FABRIC_SERVICES_DIR: services },
