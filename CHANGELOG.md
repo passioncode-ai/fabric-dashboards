@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.203 - 2026-11-18
+
+### Changed
+- FD-337: Switchboard owns sessions. A session of this Mac that Switchboard's sessions page lists offers exactly the
+  actions Switchboard gives it: Open here, and End, which asks first and then ends it through Switchboard.
+- FD-339: the MCP server's old tool names, kept one release beside `search` and `execute`, are retired. A call by one is
+  refused `retired-name` with the `execute` call that runs it.
+
 ## 0.8.202 - 2026-11-18
 
 ### Added
