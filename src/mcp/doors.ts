@@ -3,7 +3,7 @@
 // 0.33.0 `mcp-two-doors.md`): `tools/list` answers two doors, `search` and `execute`. `search` finds this server's
 // operations by words, each with its purpose, input schema, effect, gate and an example; `execute` runs one by name
 // through the same checks, the same operator decision and, for an act on another agent, an idempotency key. The old
-// tool names keep working for one release, unlisted.
+// tool names worked one release, unlisted (0.8.201 and 0.8.202); since 0.8.203 a call by one is refused `retired-name`.
 import { OWN_ACTIONS } from './actions';
 import { TOOLS } from './schema';
 

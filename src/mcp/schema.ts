@@ -4,7 +4,7 @@ import { ARRANGE } from './tools';
 
 export const INSTRUCTIONS = [
   'Two doors (FD-339): `search` finds this server\'s operations by words, each with its schema, gate and an example;',
-  '`execute` runs one by name with its arguments (an act on another agent also takes an idempotencyKey). The names below are operations.',
+  '`execute` runs one by name with its arguments (an act on another agent also takes an idempotencyKey). The names below, and the tool each declared action names, are operations.',
   'Fabric Dashboards watches the agent services of this Mac (fabric-service/0.1): local ones and',
   'online ones registered here (placement remote, an https origin supervised by its platform).',
   'Hand a person a link to what you started: `link` or `open` turn a service key (id.instance)',
