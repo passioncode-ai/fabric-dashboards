@@ -1686,6 +1686,7 @@ export class ConsoleHost {
   async endSession(id: string): Promise<SessionActionResult> {
     const row = this.rowOf(id);
     if (row?.machine && row.id.startsWith('rm:')) return this.endRemote(row);
+    if (row && !row.key && !row.machine && row.launch?.launchId) return this.endHosted(row);
     if (!row?.key) return { ok: false, reason: 'unknown' };
     if (!row.actions.includes('end')) return { ok: false, reason: 'not-allowed' };
     this.stopByPerson(row.key);
@@ -1764,6 +1765,22 @@ export class ConsoleHost {
 
   /** FD-247 (step 7): End for a session another machine's session host holds (the page asked first): `sessions end`
    *  there; the next read of that machine shows it ended. */
+  /** FD-337: End on this Mac's session that Switchboard's sessions page offers to end (`acts: end`): its own door,
+   *  `switchboard sessions end <launch_id>`, asked once more when its host was busy (FD-309), then the list read again. */
+  private async endHosted(row: SessionRow): Promise<SessionActionResult> {
+    const launchId = row.launch?.launchId;
+    if (!row.actions.includes('end') || !launchId || !/^[A-Za-z0-9._:-]{1,128}$/.test(launchId)) return { ok: false, reason: 'not-allowed' };
+    const inv = await this.inventory();
+    if (!inv.switchboard) return { ok: false, reason: 'no-switchboard' };
+    const end = () => this.run(inv.switchboard!, ['--json', 'sessions', 'end', launchId], 20_000).catch(() => ({ code: 1, stdout: '', stderr: 'switchboard did not run' }));
+    let r = await end();
+    if (r.code !== 0 && /HOST_BUSY/.test(`${r.stdout}\n${r.stderr}`)) r = await end();
+    this.o.log(`console: session ${launchId} ${r.code === 0 ? 'ended through Switchboard' : `did not end: ${sbFailure(r)}`}`);
+    if (r.code !== 0) return { ok: false, reason: 'spawn', detail: sbFailure(r).slice(0, 200) };
+    void this.pollSessions();
+    return { ok: true, key: null };
+  }
+
   private async endRemote(row: SessionRow): Promise<SessionActionResult> {
     const launchId = row.launch?.launchId;
     if (!row.actions.includes('end') || !launchId) return { ok: false, reason: 'not-allowed' };

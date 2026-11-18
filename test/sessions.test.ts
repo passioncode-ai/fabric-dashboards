@@ -280,6 +280,7 @@ function rig(o: { stop?: { silent?: boolean; candidates?: string[] }; sessions?:
       if (line === '--json sessions --machine') return o.machine ? ok({ sessions: o.machine }) : { code: 2, stdout: '{"error":"Invalid arguments. Run switchboard --help.","ok":false}', stderr: '' };
       if (line === '--json recovery') return ok({ sessions: o.stop ? [{ candidates: o.stop.candidates ?? ['acc-2'], ready: true, stop: { attempt: 1, directory: dir, event: `cc-${SID}-1`, kind: 'limit', provider: 'claude', session: SID, state: 'waiting', stopped_at: (Date.now() - MIN) / 1000 } }] : [] });
       if (args[1] === 'recovery') return ok({});
+      if (line.startsWith('--json sessions end ')) return ok({ launch_id: args[3], exit_code: 0, reason: 'ended' }); // FD-337
       if (line.startsWith('--json project show')) return ok({ project: null, rules: [] });
       if (path.basename(file) === 'lsof') return { code: 1, stdout: '', stderr: '' };
       if (path.basename(file) === 'ps') return { code: 0, stdout: 'zsh\n', stderr: '' };
@@ -698,4 +699,41 @@ test('FD-291 step 2: the console host reads the page and not `--machine`; an old
   assert.deepEqual(older.host.sessionsStatus().rows.map((x) => [x.project, x.state]), [['eta', 'running-unmanaged']]);
   assert.equal(older.calls.filter((c) => c.join(' ') === 'switchboard --json sessions --rows').length, 1, 'asked once, then left for MACHINE_RECHECK_MS');
   assert.deepEqual(older.host.sessionsStatus().degraded, []);
+});
+
+// FD-337 (Switchboard's answer `df616d97`): Switchboard owns sessions. A launch of this Mac that its sessions page lists
+// offers exactly the acts that page gives it: Open here and End only when the page says so, End through Switchboard.
+test('FD-337: this Mac\'s launch rows offer exactly the page\'s acts', () => {
+  const launch = (id: string) => ({ launchId: id, by: { surface: 'cli' as const, by: null, program: null, project: null, parent: null, caller: null }, transcript: null, providerSessionId: null, turns: null, lastTurnAt: null, ended: null, endedAt: null, continuedAs: null });
+  const hosted = 'a1b2c3d4-0000-4000-8000-000000000011';
+  const plain = 'a1b2c3d4-0000-4000-8000-000000000012';
+  const page = (launchId: string, acts: string[]): SbPageRow => ({ id: `launch:${launchId}`, group: 'running', why: 'working', acts, agent: 'claude-code', folder: '/w/beta', account: null, origin: 'cli', since: NOW - 5 * MIN, launchId, sessionId: null, quietMinutes: null, probeAt: null });
+  const recs = [sb({ folder: '/w/beta', attachable: true, launch: launch(hosted) }), sb({ folder: '/w/gamma', attachable: true, launch: launch(plain) })];
+  // Without the page: as before, a host's session opens here and nothing ends it from this app.
+  const before = mergeSessions(input({ switchboard: recs }));
+  assert.deepEqual(before.map((r) => r.actions), [['attach', 'reveal'], ['attach', 'reveal']]);
+  // With the page: the hosted one may be ended there; the other one the page offers nothing for is only revealed.
+  const after = mergeSessions(input({ switchboard: recs, page: [page(hosted, ['attach', 'end']), page(plain, [])] }));
+  const byFolder = Object.fromEntries(after.map((r) => [r.project, r.actions]));
+  assert.deepEqual(byFolder.beta, ['attach', 'end', 'reveal']);
+  assert.deepEqual(byFolder.gamma, ['reveal'], 'the page did not offer Open here');
+});
+
+test('FD-337: End on such a row asks Switchboard to end it, and only when the page offers it', POSIX, async () => {
+  const hosted = 'a1b2c3d4-0000-4000-8000-000000000021';
+  const plain = 'a1b2c3d4-0000-4000-8000-000000000022';
+  const at = Math.floor(Date.now() / 1000) - 120;
+  const rec = (id: string, folder: string) => ({ home: '/sb/homes/a', working_directory: folder, provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', label: 'Work Max', account_id: 'acc-1', launched_at: at, started_at: at, state: 'running', in_place: true, attachable: true, launch_id: id });
+  const pageRow = (id: string, folder: string, acts: string[]) => ({ id: `launch:${id}`, group: 'running', why: 'working', acts, agent: 'claude-code', folder, account: null, origin: 'cli', since: at, launch_id: id, session_id: null, quiet_minutes: null, probe_at: null });
+  const r = rig({ sessions: [rec(hosted, '/w/beta'), rec(plain, '/w/gamma')], page: [pageRow(hosted, '/w/beta', ['attach', 'end']), pageRow(plain, '/w/gamma', [])] });
+  await r.host.pollSessions();
+  const rows = r.host.sessionsStatus().rows;
+  const beta = rows.find((x) => x.project === 'beta');
+  const gamma = rows.find((x) => x.project === 'gamma');
+  assert.ok(beta && gamma, JSON.stringify(rows.map((x) => [x.project, x.actions])));
+  assert.deepEqual(beta.actions, ['attach', 'end', 'reveal']);
+  assert.deepEqual(await r.host.endSession(gamma.id), { ok: false, reason: 'not-allowed' }, 'the page did not offer End');
+  assert.deepEqual(await r.host.endSession(beta.id), { ok: true, key: null });
+  assert.ok(r.calls.some((c) => c.join(' ') === `switchboard --json sessions end ${hosted}`), 'Switchboard\'s own door');
+  assert.ok(!r.calls.some((c) => c.join(' ') === `switchboard --json sessions end ${plain}`));
 });
