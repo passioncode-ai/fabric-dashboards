@@ -7,6 +7,16 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.203: sessions follow Switchboard, old MCP names retired (2026-11-18)
+
+Tagged: v0.8.203 (run 44398386539; FD-337: this Mac's Switchboard launches offer exactly their sessions-page acts, End
+through `switchboard sessions end`, PR #692; FD-339: the old MCP tool names retired after their last caller moved to
+`execute`, board reply `7e320f98`, PR #694; release PR #695). 0.8.202 published 20:49 UTC (16 assets). This Mac runs
+0.8.198 with 0.8.199 staged; its install waits while consoles run. Waits: FD-325 and FD-335 need load under 40 (83 to 207
+tonight); FD-337 Open in Switchboard waits for SB-479; FD-331's rest for studio-agent STU-148 (by 2026-11-21); FD-322 not
+before 2026-11-25. Next task: confirm v0.8.203 published (16 assets); then FD-325 (`npm run test:e2e`) and FD-335 (walk
+the launch UI on the built app) once `node scripts/check-machine.mjs` passes.
+
 ## 0.8.202: template and etalon, an agent without code (2026-11-18)
 
 Released: 0.8.201 (FD-331 Connect an agent, FD-326, FD-333, FD-334, FD-339; 0.8.200 never published, its check failed on
