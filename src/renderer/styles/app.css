@@ -513,6 +513,12 @@ table.spend th.num, table.spend td.num { text-align: right; }
 /* DEC-0027: every limit of an agent, above its models; a limit that is not enforced is muted, never hidden. */
 .spend-limits { margin-bottom: var(--pc-space-3); }
 .spend-limits tr.muted td { color: var(--pc-text-muted); }
+/* FD-324: money by day over 30 days in an agent's open row. */
+.spend-daily { margin: 0 0 var(--pc-space-3); }
+.spend-daily figcaption { font: var(--pc-type-meta); color: var(--pc-text-muted); margin-bottom: var(--pc-space-1); }
+.spend-daily rect { fill: var(--pc-link); }
+.spend-daily rect.partial { fill: var(--pc-warning); }
+.spend-daily rect.unknown { fill: none; stroke: var(--pc-border-strong); stroke-dasharray: 2 2; }
 
 /* FD-39 SCN-058: the Overview's wrapper (a split when the Setup console is open) and the setup checklist. */
 .page-wrap { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; }

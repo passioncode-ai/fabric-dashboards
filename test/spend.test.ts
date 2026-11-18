@@ -183,3 +183,26 @@ test('FD-129 (VIS-18): dollars carry a thousands separator in every language; ti
   assert.equal(limitUsd(0.004, t), '<$0.01');
   assert.equal(limitUsd(null, t), 'spend.unknown');
 });
+
+test('FD-324: the summary carries money by day over the same 30 days, an unknown day unknown and a lower bound marked', async () => {
+  const { summarizeUsage } = await import('@passioncode-ai/fabric-service-host/usage');
+  const row = (calls: number, costUsd: number | null, unpricedCalls = 0, route?: 'subscription') => ({ provider: 'p', model: 'm', costBasis: 'provider' as const, calls, unpricedCalls, inputTokens: 1, outputTokens: 1, costUsd, ...(route ? { route } : {}) });
+  const day = (date: string, rows: ReturnType<typeof row>[]) => ({ date, calls: rows.reduce((n, r) => n + r.calls, 0), unpricedCalls: rows.reduce((n, r) => n + r.unpricedCalls, 0), inputTokens: rows.length, outputTokens: rows.length, costUsd: rows.every((r) => r.costUsd === null) ? null : rows.reduce((n, r) => n + (r.costUsd ?? 0), 0), byModel: rows });
+  const report = { protocol: 'fabric-service/0.1', service: { id: 'a', instance: 'default' }, generatedAt: '2026-11-18T10:00:00Z', currency: 'USD' as const, days: [
+    day('2026-10-01', [row(1, 9)]), // older than the 30 days: not in the chart
+    day('2026-11-10', [row(2, 1.5)]),
+    day('2026-11-12', [row(3, null, 3)]),
+    day('2026-11-15', [row(2, 0.5, 1)]),
+    day('2026-11-18', [row(1, 2), row(4, 7, 0, 'subscription')]),
+  ] };
+  const daily = summarizeUsage(report, Date.parse('2026-11-18T10:00:00Z')).daily!;
+  assert.equal(daily.length, 30);
+  assert.equal(daily[0]!.date, '2026-10-20');
+  assert.equal(daily[29]!.date, '2026-11-18');
+  const at = (d: string) => daily.find((x) => x.date === d)!;
+  assert.deepEqual(at('2026-11-10'), { date: '2026-11-10', calls: 2, costUsd: 1.5, partial: false });
+  assert.deepEqual(at('2026-11-12'), { date: '2026-11-12', calls: 3, costUsd: null, partial: true }, 'calls with no price are unknown, never $0');
+  assert.deepEqual(at('2026-11-15'), { date: '2026-11-15', calls: 2, costUsd: 0.5, partial: true }, 'some calls unpriced: a lower bound');
+  assert.deepEqual(at('2026-11-18'), { date: '2026-11-18', calls: 5, costUsd: 2, partial: false }, 'a subscription is not money (FD-88)');
+  assert.deepEqual(at('2026-11-11'), { date: '2026-11-11', calls: 0, costUsd: 0, partial: false }, 'a day the report does not list spent nothing');
+});
