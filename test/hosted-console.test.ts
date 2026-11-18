@@ -9,7 +9,7 @@ import { ConsoleHost } from '../src/electron/console';
 import { launchFeatures } from '../src/core/switchboard';
 import { planStart } from '../src/core/consoles';
 import { SettingsStore } from '../src/core/settings';
-import { tmp } from './helpers';
+import { tmp, waitFor } from './helpers';
 
 const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtimes are shell scripts' };
 const GB = 1024 ** 3;
@@ -93,9 +93,9 @@ test('FD-211: Stop ends a hosted session with `sessions end`, and it is recorded
   assert.ok(r.spawned[0]!.args.includes('--hosted'), r.spawned[0]!.args.join(' '));
   assert.ok(r.host.runsOnWithoutApp(key));
   r.host.stopByPerson(key);
-  await tick(80);
+  // FD-321: wait for the end itself, not a fixed tick that a loaded machine overruns
+  await waitFor('the session ended by the person', () => r.host.sessionsStatus().rows.find((x) => x.key === key)?.state === 'ended-by-you', 5000);
   assert.ok(r.asked.includes(`--json sessions end ${LID}`), r.asked.join('\n'));
-  assert.equal(r.host.sessionsStatus().rows.find((x) => x.key === key)?.state, 'ended-by-you');
   assert.ok(!r.host.runsOnWithoutApp(key));
 });
 
@@ -114,8 +114,7 @@ test('FD-211: a hosted session Switchboard does not list, or cannot end, still g
     const r = rig(o);
     const key = await r.start();
     r.host.stopByPerson(key);
-    await tick(80);
-    assert.notEqual(r.host.sessionsStatus().rows.find((x) => x.key === key)?.group, 'running', JSON.stringify(o));
+    await waitFor(`the view closed (${JSON.stringify(o)})`, () => r.host.sessionsStatus().rows.find((x) => x.key === key)?.group !== 'running', 5000);
   }
 });
 
@@ -123,28 +122,26 @@ test('FD-309: a host that answers HOST_BUSY is asked once more before the view i
   const r = rig({ busy: 1 });
   const key = await r.start();
   r.host.stopByPerson(key);
-  await tick(120);
+  await waitFor('ended in the host, not only its view', () => r.host.sessionsStatus().rows.find((x) => x.key === key)?.state === 'ended-by-you', 5000);
   assert.equal(r.asked.filter((l) => l === `--json sessions end ${LID}`).length, 2, r.asked.join('\n'));
-  assert.equal(r.host.sessionsStatus().rows.find((x) => x.key === key)?.state, 'ended-by-you', 'ended in the host, not only its view');
 });
 
 test('FD-309: a host busy twice gets one retry only, then the view is closed as before', POSIX, async () => {
   const r = rig({ busy: 5 });
   const key = await r.start();
   r.host.stopByPerson(key);
-  await tick(120);
+  await waitFor('the view closed', () => r.host.sessionsStatus().rows.find((x) => x.key === key)?.group !== 'running', 5000);
+  await tick(); // a third ask would follow the close at once: none does
   assert.equal(r.asked.filter((l) => l === `--json sessions end ${LID}`).length, 2);
-  assert.notEqual(r.host.sessionsStatus().rows.find((x) => x.key === key)?.group, 'running');
 });
 
 test('FD-299: a hosted session `sessions --all` does not list is found in the history and ended there, not left running', POSIX, async () => {
   const r = rig({ listed: false, history: true });
   const key = await r.start();
   r.host.stopByPerson(key);
-  await tick(80);
+  await waitFor('the session ended by the person', () => r.host.sessionsStatus().rows.find((x) => x.key === key)?.state === 'ended-by-you', 5000);
   assert.ok(r.asked.includes('--json sessions --history'), r.asked.join('\n'));
   assert.ok(r.asked.includes(`--json sessions end ${LID}`), r.asked.join('\n'));
-  assert.equal(r.host.sessionsStatus().rows.find((x) => x.key === key)?.state, 'ended-by-you');
 });
 
 test('FD-211: a Switchboard without a way to end hosted sessions starts consoles as before', POSIX, async () => {
