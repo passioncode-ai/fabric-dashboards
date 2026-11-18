@@ -14,6 +14,7 @@ import { Spend } from './components/Spend';
 import { ConnectionsMap } from './components/ConnectionsMap';
 import { AgentsNav, ModeSwitch, SessionsNav, type AgentsPage, type Mode, type RowActions } from './components/Navigation';
 import { RenameDialog } from './components/RenameDialog';
+import { ConnectAgentDialog } from './components/ConnectAgentDialog';
 import { AnalyticsNotice } from './components/AnalyticsNotice';
 import { AllSessions, hasConsole, SessionBody, SessionHeader } from './components/Sessions';
 import { NewSessionDialog } from './components/NewSessionDialog';
@@ -284,6 +285,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   const askStop = (key: string) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setStopKey(key); };
   // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
   const [newSession, setNewSession] = useState<'session' | 'agent' | 'dashboard' | null>(null);
+  const [connecting, setConnecting] = useState(false); // FD-331
   // FD-247: the machine a machine heading's New session chose (null: the dialog's own choice).
   const [newSessionMachine, setNewSessionMachine] = useState<string | null>(null);
   // Wave 1 (U-06): the New session dialog makes the page inert and hides native views, as every other dialog does.
@@ -542,6 +544,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'machine' ? 'machine.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : route.page === 'sessions' ? 'sessions.all' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
                 {(route.page === 'overview' || route.page === 'sessions') && <span className="spacer" />}
+                {route.page === 'overview' && <button className="btn btn-sm" onClick={() => setConnecting(true)}>{t('connect.button')}</button>}
                 {route.page === 'overview' && <button className="btn btn-sm" onClick={() => setNewSession('dashboard')}>{t('newDashboard.button')}</button>}
                 {route.page === 'overview' && <button className="btn btn-sm" onClick={() => setNewSession('agent')}>{t('newAgent.button')}</button>}
                 {route.page === 'sessions' && <button className="btn btn-sm btn-primary" onClick={() => setNewSession('session')}>{t('newSession.button')}</button>}
@@ -572,6 +575,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
         </div>
       )}
       <AnalyticsNotice available={Boolean(status.analyticsAvailable)} onOpen={setNoticeOpen} earlierNo={status.analyticsHold === 'earlier-no'} />
+      {connecting && <ConnectAgentDialog onClose={() => setConnecting(false)} />}
       {renaming && <RenameDialog key={renaming.key} s={renaming} onClose={() => setRenameKey(null)} />}
       {newSession && <NewSessionDialog kind={newSession} machine={newSessionMachine ?? undefined} onClose={() => { setNewSession(null); setNewSessionMachine(null); }}
         onStarted={(key) => { setNewSession(null); setNewSessionMachine(null); setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS }); }} />}

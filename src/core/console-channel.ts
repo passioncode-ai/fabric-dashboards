@@ -20,8 +20,8 @@ export const CHANNEL_KEY_FILE = 'console.key';
 export const CHANNEL_SOCKET_FILE = 'console.sock';
 export const CHANNEL_TASK_MAX = 16 * 1024;
 
-export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'sessions.list' | 'org.join' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install' | 'session.new';
-const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'sessions.list', 'org.join', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install', 'session.new'];
+export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'sessions.list' | 'org.join' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install' | 'session.new' | 'agent.connect';
+const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'sessions.list', 'org.join', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install', 'session.new', 'agent.connect'];
 /** FD-175: what a session row's button does, and what the app's update buttons do. */
 export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach';
 export interface ChannelRequest {
@@ -127,6 +127,11 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   if (r.op === 'org.join') {
     if (!only('link') || (r.link !== undefined && (typeof r.link !== 'string' || r.link.length > 2048))) return { ok: false, code: 'bad-link' };
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', ...(typeof r.link === 'string' ? { link: r.link } : {}) } };
+  }
+  // FD-331: Connect an agent from an invitation link; the app parses it again and the person confirms.
+  if (r.op === 'agent.connect') {
+    if (!only('link') || typeof r.link !== 'string' || !r.link || r.link.length > 2048) return { ok: false, code: 'bad-link' };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', link: r.link } };
   }
   if (r.op === 'app.install') {
     if (!only('install') || (r.install !== 'move-to-applications' && r.install !== 'uninstall' && r.install !== 'uninstall-all')) return { ok: false, code: 'bad-install' };

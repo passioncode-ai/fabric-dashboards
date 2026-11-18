@@ -149,6 +149,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
+    name: 'agent_connect',
+    description: 'Connect an organization\'s agents to this Mac from an invitation link, as the window\'s Connect an agent does (FD-331, FD-193): link is the whole fabric-dashboards://register?origin=…&invite=… link. The running app parses it, asks the person to confirm, redeems the one-time invitation for a token of this computer and adds the showcase and each agent its grant names. Answers host, added and skipped, or refused with why. Needs the app running.',
+    inputSchema: { type: 'object', properties: { link: { type: 'string', maxLength: 2048 } }, required: ['link'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  {
     name: 'console_choose',
     description: 'The console\'s pickers for one agent (FD-175): runtime, the coding agent that runs in its console (an id such as claude-code or codex, installed on this machine), and folder, the absolute path of an existing folder it opens in. For an agent placed on another machine (FD-205), where: there (the default) runs the console on that machine over ssh, here runs it on this Mac in the folder here. Saved as the person\'s choice; the next New session takes them. FD-334: clone: true alone is Clone and open, for an agent with a GitHub repository and no checkout here: Switchboard clones it with the person\'s gh into ~/DATA/<name> and the console opens there. Answers the runtime, folder and where in force, or unknown-runtime (with the ids installed here), no-folder or not-placed-elsewhere. Needs the app running.',
     inputSchema: { type: 'object', properties: { service: serviceArg, runtime: { type: 'string', maxLength: 64 }, folder: { type: 'string', maxLength: 4096 }, where: { type: 'string', enum: ['here', 'there'] }, clone: { type: 'boolean' } }, required: ['service'], additionalProperties: false },

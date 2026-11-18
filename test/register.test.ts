@@ -8,7 +8,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { readDirectory } from '@passioncode-ai/fabric-service-host';
 import { parseDeepLink } from '../src/core/deeplink';
-import { agentHostAllowed, parseRegisterLink, register, type RegisterDeps } from '../src/core/register';
+import { connectLinkOf, agentHostAllowed, parseRegisterLink, register, type RegisterDeps } from '../src/core/register';
+import { parseRequest } from '../src/core/console-channel';
 
 const INVITE = 'A'.repeat(32);
 const TOKEN = 'h0st-T0ken_' + 'x'.repeat(40);
@@ -124,4 +125,16 @@ test('FD-193: a token whose well-known fails is kept; a descriptor for another o
   assert.match((again as { detail: string }).detail, /already installed for https:\/\/other\.example\.org/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'studio-showcase.acme.json'), 'utf8')).origin, 'https://other.example.org');
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('FD-331: a pasted invitation is the whole register link; anything else says what to paste', () => {
+  const ok = connectLinkOf('  fabric-dashboards://register?origin=https://agents.example.com&invite=' + 'a'.repeat(32) + '  ');
+  if ('reason' in ok) assert.fail(ok.reason);
+  assert.equal(ok.origin, 'https://agents.example.com');
+  assert.match((connectLinkOf('https://agents.example.com/?invite=x') as { reason: string }).reason, /paste the invitation link/);
+  assert.match((connectLinkOf('not a link') as { reason: string }).reason, /paste the invitation link/);
+  assert.ok('reason' in connectLinkOf('fabric-dashboards://service/x.default'));
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'agent.connect', link: 'fabric-dashboards://register?origin=https://a.example.com&invite=x' })).ok, true);
+  assert.equal(parseRequest(JSON.stringify({ key: 'k', op: 'agent.connect' })).ok, false);
+  assert.equal(parseRequest(JSON.stringify({ key: 'k', op: 'agent.connect', link: 'x', service: 'a.b' })).ok, false);
 });

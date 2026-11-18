@@ -1,3 +1,4 @@
+import type { ConnectAgentResult } from '../core/api';
 // ADR-0025 (FD-120): what the app answers its own MCP server on the console channel: a read, or a start through the
 // buttons' own code path. Moved out of main.ts unchanged (FD-304); what it needs comes in as ChannelDeps.
 import { shell, type BrowserWindow } from 'electron';
@@ -26,6 +27,8 @@ export interface ChannelDeps {
   copyAt: () => Parameters<typeof moveSkip>[0];
   moveToApplications: (quiet?: boolean) => Promise<unknown>;
   uninstall: (decided: { deleteData: boolean }) => Promise<{ ok: boolean; error?: string }>;
+  /** FD-331: Connect an agent from an invitation link (the person confirms). */
+  connectAgent?: (link: string) => Promise<ConnectAgentResult>;
 }
 
 // #region console-channel-answers — docs: docs/adr/0025-the-console-channel.md#decision
@@ -86,6 +89,11 @@ export function channelAnswers(d: ChannelDeps): (r: ChannelRequest) => Promise<C
     if (r.op === 'console.choose' && r.choice) {
       const done = await consoles.chooseFor(r.service, r.choice);
       return done.ok ? { ok: true, result: { runtime: done.runtime, folder: done.folder, where: done.where } } : { ok: false, code: done.reason, detail: done.detail };
+    }
+    if (r.op === 'agent.connect' && r.link) {
+      if (!d.connectAgent) return { ok: false, code: 'unavailable' };
+      const done = await d.connectAgent(r.link);
+      return done.ok ? { ok: true, result: done } : { ok: false, code: 'refused', detail: done.reason.slice(0, 300) };
     }
     if (r.op === 'org.join') {
       // FD-248 (SCN-115): MCP `organization_join` with `open: true`, the same check as the button.
