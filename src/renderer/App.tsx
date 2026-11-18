@@ -3,6 +3,7 @@ import { MachinePage } from './components/MachinePage';
 import { langFor, t as tr, type Lang } from '../core/i18n';
 import { DEFAULT_SETTINGS, PROBLEM_STATES, SIDEBAR_WIDTH, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
 import { filterServices } from '../core/organizations';
+import { windowFill } from '../core/focus';
 import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, setOff, showAgain, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { SetupCard, Overview } from './components/Overview';
@@ -474,18 +475,21 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     void api().windowZoom();
   };
   // FD-220: an agent's dashboard may fill the window: the agent list and the page header step aside; Esc brings them back.
-  const focus = layout.focus && route.page === 'service' && Boolean(current);
+  // FD-333: an agent's console shown in full fills the window as Fabric's and Inbox's terminals do: the agent list and the
+  // page header step aside, the thin toolbar keeps the console and the way back, and leaving closes the console.
+  const { fills: consoleFills, focus } = windowFill({ onAgent: route.page === 'service' && Boolean(current), consoleOpen: layout.console.open, consoleFull: layout.console.full, dashboardFocus: layout.focus });
+  const leaveFocus = () => changeLayout(consoleFills ? { console: { open: false } } : { focus: !layout.focus });
   const chrome: DashChrome = {
-    focus, toggleFocus: () => changeLayout({ focus: !layout.focus }),
+    focus, fills: consoleFills, toggleFocus: leaveFocus,
     consoleOpen: layout.console.open, toggleConsole: () => changeLayout({ console: { open: !layout.console.open } }),
   };
   useEffect(() => {
     if (!focus) return;
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) changeLayout({ focus: false }); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) changeLayout(consoleFills ? { console: { open: false } } : { focus: false }); };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus]);
+  }, [focus, consoleFills]);
   return (
     <DashChromeContext.Provider value={chrome}>
     <div className={`app${rail ? ' rail' : ''}${resizing ? ' resizing' : ''}${focus ? ' focus' : ''}`} style={rail || focus ? undefined : { gridTemplateColumns: `${layout.sidebarWidth}px 1fr` }}>

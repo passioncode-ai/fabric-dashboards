@@ -38,3 +38,11 @@ export function firstAction(s: Pick<ServiceSnapshot, 'state' | 'busy' | 'launchd
   return null;
 }
 // #endregion first-action
+
+/** FD-333: how an agent's page fills the window. `fills`: its console, shown in full, takes the window as Fabric's and
+ *  Inbox's terminals do (the agent list and the page header step aside; leaving closes the console). `focus`: the window
+ *  is filled, by the console or by the person's own choice to fill it with the dashboard (FD-220). */
+export function windowFill(o: { onAgent: boolean; consoleOpen: boolean; consoleFull: boolean; dashboardFocus: boolean }): { fills: boolean; focus: boolean } {
+  const fills = o.onAgent && o.consoleOpen && o.consoleFull && !o.dashboardFocus;
+  return { fills, focus: o.onAgent && (o.dashboardFocus || fills) };
+}
