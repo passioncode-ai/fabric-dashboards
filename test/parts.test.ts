@@ -11,7 +11,7 @@ import { merge, SettingsStore } from '../src/core/settings';
 import { DEFAULT_SETTINGS, type Settings } from '../src/core/types';
 import { clampRect, dashboardPathOf, loadErrorText, navigation, partitionFor, resolveLink, routeLink } from '../src/electron/policy';
 import { tmp } from './helpers';
-import { windowFill } from '../src/core/focus';
+import { hasWorkplace, windowFill } from '../src/core/focus';
 
 test('navigation stays on the service origin; web links leave only through the browser', () => {
   const o = 'http://127.0.0.1:47195';
@@ -526,4 +526,12 @@ test('FD-333: an agent console shown in full fills the window and is left by clo
   assert.deepEqual(windowFill({ ...base, consoleOpen: false }), { fills: false, focus: false });
   assert.deepEqual(windowFill({ ...base, dashboardFocus: true }), { fills: false, focus: true }, 'the person filled the window with the dashboard: the shrink button stays');
   assert.deepEqual(windowFill({ ...base, onAgent: false }), { fills: false, focus: false }, 'only an agent page fills the window');
+});
+
+test('FD-330: a cloud agent that names no repository has no coding agent by default; every other agent has a workplace', () => {
+  assert.equal(hasWorkplace({ placement: 'remote' }), false);
+  assert.equal(hasWorkplace({ placement: 'remote', source: { repository: 'https://github.com/acme/agent' } }), true);
+  assert.equal(hasWorkplace({ placement: 'local' }), true, 'a local agent is edited where it runs');
+  assert.equal(hasWorkplace({}), true);
+  assert.equal(hasWorkplace(null), true, 'an unread descriptor hides nothing');
 });
