@@ -70,7 +70,14 @@ export function rpcResult(a: Pick<Answer, 'headers' | 'body'>, id: number): { re
  * words. Servers name a capability's tool with its dots (`relay.notify`) or with underscores (`relay_notify`, the
  * contract's capability-underscores spelling), so the session's `tools/list` decides which one this server has.
  */
-export async function callCapability(target: McpTarget, capability: string, args: Record<string, unknown>, clientVersion: string, timeoutMs = 15_000): Promise<unknown> {
+export interface CallOptions {
+  /** FD-324 (DEC-0121 AP-2): the call's `_meta`, where a relayed action carries the operator's decision. */
+  meta?: Record<string, unknown>;
+  /** FD-324: the key an `execute` door asks of an act on another agent (agents base R33, two doors). */
+  idempotencyKey?: string;
+}
+
+export async function callCapability(target: McpTarget, capability: string, args: Record<string, unknown>, clientVersion: string, timeoutMs = 15_000, opts: CallOptions = {}): Promise<unknown> {
   const deadline = Date.now() + timeoutMs;
   // FD-255 (security audit F3): a token goes to a loopback port only when this user's own process listens there, the
   // check every other request of the app makes (FD-156); with no check set (a host that cannot tell), as before.
@@ -89,9 +96,13 @@ export async function callCapability(target: McpTarget, capability: string, args
     await send(target, 'POST', { jsonrpc: '2.0', method: 'notifications/initialized' }, session, deadline);
     const listed = await send(target, 'POST', { jsonrpc: '2.0', id: 3, method: 'tools/list' }, session, deadline);
     const names = ((rpcResult(listed, 3).result as { tools?: { name?: unknown }[] } | undefined)?.tools ?? []).map((t) => t.name).filter((n): n is string => typeof n === 'string');
-    const tool = [capability, capability.replace(/[.-]/g, '_')].find((n) => names.includes(n));
+    const direct = [capability, capability.replace(/[.-]/g, '_')].find((n) => names.includes(n));
+    // FD-324: a server with two doors (agents base R33) runs the operation through `execute` by its name.
+    const viaDoor = !direct && names.includes('execute');
+    const tool = direct ?? (viaDoor ? 'execute' : undefined);
     if (!tool) throw new Error(`the server offers no tool for ${capability} (it lists ${names.slice(0, 8).join(', ') || 'none'})`);
-    const call = await send(target, 'POST', { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: args } }, session, deadline);
+    const callArgs = viaDoor ? { operation: capability, arguments: args, ...(opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey } : {}) } : args;
+    const call = await send(target, 'POST', { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: callArgs, ...(opts.meta ? { _meta: opts.meta } : {}) } }, session, deadline);
     if (call.status !== 200) throw new Error(`${tool} answered HTTP ${call.status}`);
     const answer = rpcResult(call, 2);
     if (answer.error) throw new Error(`${tool} refused: ${answer.error.message ?? 'no reason'}`);

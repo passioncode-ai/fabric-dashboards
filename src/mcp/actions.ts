@@ -49,6 +49,8 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   { id: 'restart-to-update', title: 'Restart to update', tool: 'app_update', gate: 'relayed' },
   // FD-331: Connect an agent from an invitation; the person confirms in the app's own dialog.
   { id: 'connect-agent', title: 'Connect an agent', tool: 'agent_connect', gate: 'none' },
+  // FD-324 (DEC-0183 SL-2): Change on Spend; the id is the agent's own action, so one decision serves both checks.
+  { id: 'spend.limits.set', title: 'Change a spending limit', tool: 'spend_limit_set', gate: 'relayed' },
   { id: 'console-choose', title: 'Choose the console\'s agent and folder', tool: 'console_choose', gate: 'none' },
   { id: 'move-to-applications', title: 'Move to Applications', tool: 'app_install', gate: 'relayed' },
   { id: 'uninstall', title: 'Uninstall', tool: 'app_install', gate: 'relayed' },
