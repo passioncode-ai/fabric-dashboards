@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.197 - 2026-11-18
+
+### Changed
+- FD-310 step 2: what limit recovery knows between two reads of Switchboard (the stops it listed, what this launch did
+  with each, why each waits, the status the Sessions list shows) lives in one object (`RecoveryBook`) with its own tests.
+  No behaviour changes.
+
 ## 0.8.196 - 2026-11-18
 
 ### Changed
