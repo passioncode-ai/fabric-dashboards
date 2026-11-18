@@ -302,6 +302,8 @@ export interface SessionsStatus {
   machine?: boolean;
   /** Whether Switchboard is installed; without it only this app's own consoles are listed. */
   switchboard: boolean | null; // null: not looked for yet (SCN-078)
+  /** FD-319: the running Switchboard is older than the floor this app reads fully. */
+  switchboardOld?: { version: string; floor: string };
   /** Switchboard's switch for handing sessions over to a console (`handovers set on|off`); null until read. */
   handovers: { enabled: boolean | null };
   /** Settings → Sessions → "Continue sessions after a limit reset" (SCN-083: a waiting row says when it is off). */

@@ -16,6 +16,24 @@ export function switchboardStamp(file: string): string {
   try { return `${file}:${fs.statSync(file).mtimeMs}`; } catch { return file; }
 }
 
+/** FD-319: the oldest Switchboard this app reads fully (`sessions --rows`, SB-395); older ones go through fallbacks that
+ *  a dated release retires. */
+export const SWITCHBOARD_FLOOR = '0.7.111';
+
+/** `switchboard --version` ("switchboard 0.7.114") as [major, minor, patch], or null when it does not say. */
+export function parseSwitchboardVersion(text: string): [number, number, number] | null {
+  const m = /\b(\d+)\.(\d+)\.(\d+)\b/.exec(text);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+/** Whether a version is older than the floor; an unknown version is not called old. */
+export function belowFloor(version: [number, number, number] | null, floor = SWITCHBOARD_FLOOR): boolean {
+  const f = parseSwitchboardVersion(floor)!;
+  if (!version) return false;
+  for (let i = 0; i < 3; i++) if (version[i] !== f[i]) return version[i]! < f[i]!;
+  return false;
+}
+
 /** C2-02 (2026-11-17 connections audit): a read that got no answer in time, or never ran (`execRunner` says so on stderr),
  *  says nothing about what Switchboard can do; an answer from it must not be kept. */
 export function noAnswer(r: { code: number; stderr: string }): boolean {

@@ -39,3 +39,15 @@ test('FD-314 (C2-06): ownedRunner reads as execRunner does, and its deadline end
   assert.deepEqual([bad.code, bad.stderr.trim()], [3, 'no']);
   assert.equal(noAnswer(bad), false);
 });
+
+test('FD-319: the Switchboard version is read from --version and compared with the floor; an unknown one is not old', async () => {
+  const { belowFloor, parseSwitchboardVersion, SWITCHBOARD_FLOOR } = await import('../src/core/switchboard');
+  assert.equal(SWITCHBOARD_FLOOR, '0.7.111');
+  assert.deepEqual(parseSwitchboardVersion('switchboard 0.7.114\n'), [0, 7, 114]);
+  assert.equal(parseSwitchboardVersion('error: unexpected argument'), null);
+  assert.equal(belowFloor([0, 7, 110]), true);
+  assert.equal(belowFloor([0, 7, 111]), false);
+  assert.equal(belowFloor([0, 8, 0]), false);
+  assert.equal(belowFloor([0, 6, 999]), true);
+  assert.equal(belowFloor(null), false);
+});

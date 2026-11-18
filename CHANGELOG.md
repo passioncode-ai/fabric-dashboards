@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.193 - 2026-11-18
+
+### Added
+- FD-319: the app reads the running Switchboard's version once per binary, and when it is older than 0.7.111 (the
+  oldest it reads fully) the Sessions page asks for an update. The fallbacks for older versions retire in a release on
+  or after 2026-11-25 (FD-322).
+
 ## 0.8.192 - 2026-11-18
 
 ### Fixed
