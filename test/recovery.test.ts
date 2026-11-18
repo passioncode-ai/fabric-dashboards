@@ -8,7 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost } from '../src/electron/console';
-import { CONTINUED_TAIL_BYTES, continuedAfter, continuedLaunches, continuedOf, launchTranscript, liveAgents, parseRecovery, RESUME_BRIEF, RESUME_MAX_AGE_MS, resumeArgs, resumeOwnKey, sessionOpen, transcriptOf, verdictOf, type SbStop } from '../src/core/recovery';
+import { claudeConfigRoots, rootOfSession, transcriptInRoots, CONTINUED_TAIL_BYTES, continuedAfter, continuedLaunches, continuedOf, launchTranscript, liveAgents, parseRecovery, RESUME_BRIEF, RESUME_MAX_AGE_MS, resumeArgs, resumeOwnKey, sessionOpen, transcriptOf, verdictOf, type SbStop } from '../src/core/recovery';
 import { isHandoverKey } from '../src/core/switchboard';
 import { limitStops } from '../src/mcp/tools';
 import { merge } from '../src/core/settings';
@@ -556,4 +556,27 @@ test('FD-316 (P2-02): with no stop ready the history serves 5 minutes for the sa
   await ready.host.pollRecovery();
   await ready.host.pollRecovery(Date.now() + 60_000);
   assert.equal(count(ready.calls), 2, 'fresh each pass: it guards a second continue');
+});
+
+test('FD-326: a conversation kept in one of Switchboard\'s homes is found there, with the home it lives in', () => {
+  const home = tmp();
+  const sb = path.join(home, 'Library', 'Application Support', 'ai.passioncode.fabric-switchboard');
+  const folder = '/srv/work/engine-audit';
+  const id = '9dd3929c-1aed-4d53-aae8-5faf4bd83741';
+  const tokens = path.join(sb, 'runtimes', 'claude-tokens');
+  fs.mkdirSync(path.join(tokens, 'projects', folder.replace(/[^A-Za-z0-9]/g, '-')), { recursive: true });
+  fs.writeFileSync(path.join(tokens, 'projects', folder.replace(/[^A-Za-z0-9]/g, '-'), `${id}.jsonl`), '{}\n');
+  fs.mkdirSync(path.join(sb, 'homes', 'acc-1'), { recursive: true });
+  const roots = claudeConfigRoots(home, 'darwin');
+  assert.deepEqual(roots, [path.join(home, '.claude'), tokens, path.join(sb, 'homes', 'acc-1')]);
+  const now = Date.now();
+  assert.deepEqual(transcriptInRoots(roots, folder, now - 3_600_000, now), { session: id, root: tokens });
+  assert.equal(rootOfSession(roots, id, folder), tokens);
+  assert.equal(rootOfSession(roots, id, null), tokens, 'found by a scan when the folder is not known');
+  assert.equal(rootOfSession(roots, '00000000-0000-4000-8000-000000000000', folder), null);
+  // Two conversations of the folder in two homes: never guessed at.
+  const own = path.join(home, '.claude', 'projects', folder.replace(/[^A-Za-z0-9]/g, '-'));
+  fs.mkdirSync(own, { recursive: true });
+  fs.writeFileSync(path.join(own, '11111111-1111-4111-8111-111111111111.jsonl'), '{}\n');
+  assert.equal(transcriptInRoots(roots, folder, now - 3_600_000, now), null);
 });
