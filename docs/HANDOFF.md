@@ -7,6 +7,12 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## After 0.8.198: FD-310 closed by D-6 (2026-11-18)
+
+The refactor waves are done: waves 1 to 7 and FD-310 steps 1 and 2; the rest of the split is declined by D-6 in
+[the plan](plans/2026-11-17-refactor-waves/README.md). Open in this run: the Overview e2e (load average under 40 and
+5 GB free), FD-322 (not before 2026-11-25), FD-323 and the FD-324 edit (both wait for fabric-agent-contract).
+
 ## 0.8.198: spend by day (2026-11-18)
 
 FD-324 first part (the operator's word of 2026-11-18, request `030aa246`): the 30-day chart. 0.8.196 published (run
