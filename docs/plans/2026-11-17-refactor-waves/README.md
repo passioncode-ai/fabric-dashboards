@@ -71,6 +71,13 @@ Waves 2 to 7 change no behaviour a person or agent can see, except wave 5's re-p
   host as its argument and move no coupling. The hand-overs' state moved out first (`HandoverBook`); the stop-claim state
   followed in 0.8.196 (`StopClaims`), then the split (FD-310).
 
+- **D-6 (wave 7, 2026-11-18).** FD-310 ends at its two state objects: `StopClaims` (0.8.196) and `RecoveryBook`
+  (0.8.197), each with its own tests. The continues themselves (`pollRecovery`, `resumeOnce`, `continueNow`) stay in
+  `ConsoleHost`: as a class they would need about 20 of the host's members (the machine check, the inventory, the held
+  conversations, the account labels, the console manager, the session records, the hand-over map), so the class would
+  take the host and move no coupling, while 18 test files construct the host. Safest reversible option: keep them; a
+  later change that makes the Sessions list and recovery share less reopens it as a new row.
+
 ## Running alongside
 
 Board requests are read at the start of each wave (`com.list {unread: true}`) and answered in the same turn. Open on
