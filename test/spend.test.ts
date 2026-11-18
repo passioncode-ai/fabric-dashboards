@@ -206,3 +206,17 @@ test('FD-324: the summary carries money by day over the same 30 days, an unknown
   assert.deepEqual(at('2026-11-18'), { date: '2026-11-18', calls: 5, costUsd: 2, partial: false }, 'a subscription is not money (FD-88)');
   assert.deepEqual(at('2026-11-11'), { date: '2026-11-11', calls: 0, costUsd: 0, partial: false }, 'a day the report does not list spent nothing');
 });
+
+test('FD-324 (DEC-0183): a weekly limit reads in words, the ISO week or the last 7 days', async () => {
+  const { summarizeUsage } = await import('@passioncode-ai/fabric-service-host/usage');
+  const { limitName, limitWindow } = await import('../src/core/limits');
+  const { t: tr } = await import('../src/core/i18n');
+  const en = (k: string, p?: Record<string, string | number>) => tr('en', k, p);
+  const ru = (k: string, p?: Record<string, string | number>) => tr('ru', k, p);
+  const limits = summarizeUsage(fixture('positive_service-usage-limits-edit.json'), Date.parse('2026-10-04T12:00:00Z')).limits;
+  const byId = new Map(limits.map((l) => [l.id, l]));
+  assert.equal(limitName(byId.get('machine.weekly')!, en), 'Weekly · all projects');
+  assert.equal(limitWindow(byId.get('machine.weekly')!, en, (d) => d), 'this week (UTC, from Monday)');
+  assert.equal(limitWindow(byId.get('machine.weekly')!, ru, (d) => d), 'эта неделя (UTC, с понедельника)');
+  assert.match(limitWindow(byId.get('project.demo.weekly')!, en, (d) => d), /^last /);
+});

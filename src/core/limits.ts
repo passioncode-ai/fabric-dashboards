@@ -6,7 +6,7 @@
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 
 type T = (key: string, params?: Record<string, string | number>) => string;
-const KNOWN = new Set(['per_job', 'approval', 'daily', 'monthly', 'velocity', 'pool', 'emergency']);
+const KNOWN = new Set(['per_job', 'approval', 'daily', 'weekly', 'monthly', 'velocity', 'pool', 'emergency']);
 
 /** FD-129 (VIS-18): dollars with a thousands separator, the same in every language the app speaks. */
 const DOLLARS = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
