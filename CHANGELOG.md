@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.196 - 2026-11-18
+
+### Changed
+- FD-310 step 1: the stops limit recovery takes up, claims and has not finished live in one object (`StopClaims`) that
+  the console host and a quit share, with its own tests. No behaviour changes. FD-321: tests that waited a fixed time
+  now wait for the state they check.
+
 ## 0.8.195 - 2026-11-18
 
 ### Added
