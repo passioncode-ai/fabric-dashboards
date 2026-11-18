@@ -9,6 +9,9 @@
 
 ## 0.8.200 - 2026-11-18
 
+Not published: its release check failed on two tests that assumed macOS paths (FD-326 on Linux, FD-334 on
+Windows); the tests were fixed and these changes ship in 0.8.201.
+
 ### Added
 - FD-333: an agent's console shown in full fills the whole window, as Fabric's and Inbox's terminals do: the agent list,
   the strip of open agents and the agent's header step aside under a thin toolbar; closing the console (its button or

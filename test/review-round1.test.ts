@@ -481,7 +481,9 @@ test('R1-C: continuing an idle-closed agent console from the console itself take
 test('FD-326: Continue on a session whose conversation lives in a Switchboard home resumes it there through Switchboard', POSIX, async () => {
   const id = '9dd3929c-1aed-4d53-aae8-5faf4bd83741';
   const r = rig({ hosted: true, sessions: (dir) => [{ account_id: 'acc-1', home: '/sb/runtimes/claude-tokens', label: 'Tokens', launched_at: (Date.now() - 10 * MIN) / 1000, mode: 'managed', pool: 'tokens', provider: 'claude', state: 'ended', working_directory: dir, in_place: false }] });
-  const t = path.join(r.home, 'Library', 'Application Support', 'ai.passioncode.fabric-switchboard', 'runtimes', 'claude-tokens', 'projects', r.dir.replace(/[^A-Za-z0-9]/g, '-'));
+  // Switchboard's data folder as claudeConfigRoots reads it on this platform (macOS, else XDG_DATA_HOME).
+  const sbData = process.platform === 'darwin' ? path.join(r.home, 'Library', 'Application Support') : (process.env.XDG_DATA_HOME || path.join(r.home, '.local', 'share'));
+  const t = path.join(sbData, 'ai.passioncode.fabric-switchboard', 'runtimes', 'claude-tokens', 'projects', r.dir.replace(/[^A-Za-z0-9]/g, '-'));
   fs.mkdirSync(t, { recursive: true });
   fs.writeFileSync(path.join(t, `${id}.jsonl`), '{}\n');
   const at = new Date(Date.now() - 5 * MIN);

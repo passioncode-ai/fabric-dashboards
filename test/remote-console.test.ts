@@ -290,8 +290,8 @@ test('FD-204: a session on another machine is listed with the folder it opened i
 
 test('FD-334: a GitHub repository with no checkout is offered for cloning into ~/DATA, never over an existing folder', () => {
   const none = () => false;
-  assert.deepEqual(cloneOffer('https://github.com/acme/agent-x', '/srv/u', none), { owner: 'acme', name: 'agent-x', into: '/srv/u/DATA/agent-x' });
-  assert.deepEqual(cloneOffer('git@github.com:acme/agent-x.git', '/srv/u', none), { owner: 'acme', name: 'agent-x', into: '/srv/u/DATA/agent-x' });
+  assert.deepEqual(cloneOffer('https://github.com/acme/agent-x', '/srv/u', none), { owner: 'acme', name: 'agent-x', into: path.join('/srv/u', 'DATA', 'agent-x') });
+  assert.deepEqual(cloneOffer('git@github.com:acme/agent-x.git', '/srv/u', none), { owner: 'acme', name: 'agent-x', into: path.join('/srv/u', 'DATA', 'agent-x') });
   assert.equal(cloneOffer('https://github.com/acme/agent-x', '/srv/u', () => true), null, 'the folder exists: nothing written over');
   assert.equal(cloneOffer('https://gitlab.com/acme/agent-x', '/srv/u', none), null, 'not GitHub');
   assert.equal(cloneOffer('https://github.com/acme/..', '/srv/u', none), null);
