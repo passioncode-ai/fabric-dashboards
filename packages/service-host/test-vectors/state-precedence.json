@@ -172,6 +172,16 @@
       "expect": { "state": "stopped", "reasons": [{ "code": "reason.elsewhere", "params": { "machine": "studio-2" } }] }
     },
     {
+      "name": "placed on another machine, answering here, no launchd job of its own here and its forward named by the placement record: the placed copy reached through that forward (FD-340)",
+      "input": {"elsewhere": {"placedOn": "studio-2", "forward": "ai.passioncode.forward.example-agent"}, "launchd": {"managed": false, "loaded": false, "pid": null, "disabled": false}},
+      "expect": {"state": "ready", "reasons": [{"code": "reason.reached.elsewhere", "params": {"machine": "studio-2"}}]}
+    },
+    {
+      "name": "placed on another machine, answering here, no launchd job of its own here and no forward named: it cannot be told, still a second copy (FD-132, FD-340)",
+      "input": {"elsewhere": {"placedOn": "studio-2"}, "launchd": {"managed": false, "loaded": false, "pid": null, "disabled": false}},
+      "expect": {"state": "duplicate", "reasons": [{"code": "reason.duplicate.elsewhere", "params": {"machine": "studio-2"}}]}
+    },
+    {
       "name": "placed on another machine yet answering here: a second copy",
       "input": { "elsewhere": { "placedOn": "studio-2" } },
       "expect": { "state": "duplicate", "reasons": [{ "code": "reason.duplicate.elsewhere", "params": { "machine": "studio-2" } }] }

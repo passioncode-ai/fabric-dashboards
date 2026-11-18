@@ -61,8 +61,9 @@ export function deriveState(i: StateInput): StateOutput {
     if (away) {
       // FD-179: this machine's own job for it is not running (launchd has it unloaded, or loaded without a process): the
       // answer comes from the placed copy through a forward of the port, as the move's SSH tunnels do. It is that copy's
-      // health, said with where it runs. A host that does not supervise it cannot tell, and keeps the FD-132 rule.
-      if (i.launchd.managed && (!i.launchd.loaded || i.launchd.pid === null)) {
+      // health, said with where it runs. A host that does not supervise it cannot tell, and keeps the FD-132 rule, unless
+      // the placement record names the forward that brings its port here (FD-340: then the answer is that copy's).
+      if ((i.launchd.managed && (!i.launchd.loaded || i.launchd.pid === null)) || (!i.launchd.managed && away.forward)) {
         const own = fromWellKnown(probe.doc);
         return { state: own.state, reasons: [...own.reasons, { code: 'reason.reached.elsewhere', params: { machine: away.placedOn } }] };
       }
