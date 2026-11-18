@@ -7,6 +7,20 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## After 0.8.204: spending limits changed from Spend (FD-324, contract DEC-0183) (2026-11-18)
+
+0.8.203 was not published: its Windows and Linux package check called `list_services` by the name FD-339 retired; the
+check and two e2e tests call `execute` now, and 0.8.204 carries it all (tag `v0.8.204`, run 44403166423, its Linux
+packages already passed the check). Merged after the tag, for the next release: FD-324's read of DEC-0183 (PR #698:
+the week, `editable` with bounds, `limitChanges`, `months`; a report carrying `editable` was refused whole before), the
+agent door (PR #699: MCP `spend_limit_set` calls the agent's `spend.limits.set`, a raise only with the operator's
+decision in `_meta`; the MCP client carries `_meta` and reaches an agent's `execute` door) and Change on Spend with the
+change history (PR #700). Board: contract told (thread `f112ec7c`, replies `057a8677`, `0ed0acd0`); the agent architect
+got five lessons of the day (request `e9d63c1c`). Waits: FD-325 and FD-335 need load under 40; FD-337 Open in
+Switchboard waits for SB-479; FD-331's rest for STU-148 (by 2026-11-21); FD-322 not before 2026-11-25. Next task:
+confirm v0.8.204 published (16 assets); then FD-324's rest (a months chart from `months`, SL-6; an emergency stop missing
+from a spending agent's report as an audit finding, SL-5), then version 0.8.205.
+
 ## 0.8.203: sessions follow Switchboard, old MCP names retired (2026-11-18)
 
 Tagged: v0.8.203 (run 44398386539; FD-337: this Mac's Switchboard launches offer exactly their sessions-page acts, End
