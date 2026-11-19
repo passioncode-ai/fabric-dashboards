@@ -200,7 +200,7 @@ export interface LaunchedBy {
 export interface LaunchFacts {
   launchId: string | null;
   by: LaunchedBy;
-  /** Absolute path of the runtime's own transcript; shown in Finder only, never read or sent. */
+  /** Absolute path of the runtime's own transcript; shown in Finder, and read in the main process for Open session (FD-354), never sent. */
   transcript: string | null;
   /** FD-166: the coding agent's own session id (Claude Code's `session_id`), from Switchboard's launch record; null when
    *  absent. Optional: records built before it carry none. */
@@ -353,6 +353,8 @@ export const processRowId = (pid: number, startedAt: number | null) => `pr:${pid
 export const attachOwnKey = (launchId: string) => `handover.at-${fnv64(launchId).slice(0, 12)}`;
 /** FD-247 (step 7b, SCN-111): the console of its own that holds a login shell on another machine; one per machine. */
 export const machineTerminalKey = (machine: string) => `session.term-${fnv64(machine).slice(0, 12)}`;
+/** FD-354 (SCN-080 step 6): Open session terminal, one console per machine ('' for this one) and folder. */
+export const folderTerminalKey = (machine: string, folder: string) => `session.term-${fnv64(`${machine}\u0000${norm(folder)}`).slice(0, 12)}`;
 /** FNV-1a, 64 bits as hex: a stable short name for a long folder. Pure, so the renderer can import this module. */
 function fnv64(text: string): string {
   let h = 0xcbf29ce484222325n;

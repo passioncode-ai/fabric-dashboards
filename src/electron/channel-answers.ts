@@ -56,7 +56,7 @@ export function channelAnswers(d: ChannelDeps): (r: ChannelRequest) => Promise<C
       const { act, row, account } = r.session;
       if (act === 'clear-ended') { await consoles.clearEnded(); return { ok: true, result: { act } }; }
       const done = act === 'continue' ? await consoles.continueSession(row!, { cols: 100, rows: 30 }, account)
-        : act === 'end' ? await consoles.endSession(row!) : act === 'attach' ? await consoles.attachSession(row!) : await consoles.dismissSession(row!);
+        : act === 'end' ? await consoles.endSession(row!) : act === 'attach' ? await consoles.attachSession(row!) : act === 'terminal' ? await consoles.openSessionTerminal(row!) : await consoles.dismissSession(row!);
       return done.ok ? { ok: true, result: { act, ...done } } : { ok: false, code: done.reason ?? 'refused', ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
     }
     if (r.op === 'app.update') {

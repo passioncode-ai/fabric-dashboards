@@ -37,7 +37,7 @@ export function initialMachine(preset: string | undefined, o: Pick<NewSessionOpt
   return o.machine ? { machine: o.machine, remoteFolder: o.remoteFolder ?? '' } : { machine: '', remoteFolder: '' };
 }
 
-export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: { kind: 'session' | 'agent' | 'dashboard'; onClose: () => void; onStarted: (key: string) => void; /** FD-247: opened from a machine's heading, that machine chosen. */ machine?: string }) {
+export function NewSessionDialog({ kind, onClose, onStarted, machine: preset, folder: presetFolder }: { kind: 'session' | 'agent' | 'dashboard'; onClose: () => void; onStarted: (key: string) => void; /** FD-247: opened from a machine's heading, that machine chosen. */ machine?: string; /** FD-354: opened from a session's page, its folder chosen (on its machine). */ folder?: string }) {
   const { t } = useT();
   const [options, setOptions] = useState<NewSessionOptions | null>(null);
   const [runtime, setRuntime] = useState<string | null>(null);
@@ -57,11 +57,11 @@ export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: 
       if (!live) return;
       setOptions(o);
       setRuntime(o.runtime);
-      setFolder(o.folder);
+      setFolder(presetFolder && !preset ? presetFolder : o.folder);
       setBypass(o.bypass);
       setIsolated(o.isolated);
       const first = initialMachine(preset, o);
-      if (first.machine && kind === 'session') { setMachine(first.machine); setRemoteFolder(first.remoteFolder); }
+      if (first.machine && kind === 'session') { setMachine(first.machine); setRemoteFolder(presetFolder && preset === first.machine ? presetFolder : first.remoteFolder); }
     }).catch((e: Error) => { if (live) setError(t('newSession.failed.read', { detail: e.message })); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,7 +75,8 @@ export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: 
       if (!live) return;
       setThere(f);
       // The last folder there stays chosen while the machine still has it; else its first project, else its home.
-      if (f.ok) setRemoteFolder((cur) => (cur && (cur === f.home || f.folders.includes(cur)) ? cur : f.folders[0] ?? f.home));
+      // FD-354: the folder a session's page chose stays, also when the machine's project list does not name it.
+      if (f.ok) setRemoteFolder((cur) => (cur && (cur === f.home || f.folders.includes(cur) || cur === presetFolder) ? cur : f.folders[0] ?? f.home));
     }).catch(() => { if (live) setThere({ ok: false, why: 'unreachable' }); });
     return () => { live = false; };
   }, [machine]);

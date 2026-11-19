@@ -106,7 +106,7 @@ export async function call(deps: tools.Deps, name: string, args: Args, decision?
     }
     case 'settings': return tools.settings(deps, args.patch as Record<string, unknown> | undefined);
     case 'session_action': {
-      const act = need(args, 'act') as 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach';
+      const act = need(args, 'act') as 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach' | 'terminal';
       const row = typeof args.row === 'string' ? args.row : undefined;
       if ((act === 'clear-ended') === Boolean(row)) throw new tools.ToolError(act === 'clear-ended' ? 'clear-ended takes no row' : `${act} needs the row`);
       return tools.sessionAction(deps, act, row, typeof args.account === 'string' ? args.account : undefined);
