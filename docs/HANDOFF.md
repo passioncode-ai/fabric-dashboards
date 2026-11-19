@@ -23,17 +23,24 @@ test; both fold into 0.8.108).
   and Fabric on the board, thread `7f9d0a09` (also: attribute a process Switchboard did not launch by its config home;
   31 of 41 live sessions here have no account).
 - Mac Studio: a New session there ended at once with «Select an account for this provider first»: its groups other
-  than the default hold no account. Which account serves them is the operator's; asked (question `037c4d02`).
+  than the default held no account. Done 16:30 UTC on the operator's approval relayed on the board (`de0ba93c`,
+  thread `16d0823a`): the organization's work account is in Agents (its home) and shared with Apps & Soft, PassionCode and
+  PassionCode.ai on `studio-sshlg`. Left: one account cannot also stay in the default group there (moving it home
+  drops the shares; a feed lends it whole), so folders in no group on Studio have no account until a second one.
+- Switchboard answered thread `7f9d0a09` (`5ec57522`): `--json status` and «no account in the group» for another
+  machine (with `launch --target` refusing before it starts) by 2026-11-24; sessions it did not launch attributed by
+  config home by 2026-11-26; its design answer for the bundled engine by 2026-11-26.
 - Published: 0.8.217 (run 44553799789, 15:53 UTC, 16 assets).
-- FD-351 (access across agents, contract DEC-0187): branch `feat/fd-351-access-grants` (`083e538e`, worktree
+- FD-351 (access across agents, contract DEC-0187): branch `feat/fd-351-access-grants` (`6e73e686`, worktree
   `~/DATA/_worktrees/fd-351`, not merged): the reader (`checkAccessGrants`, `grantState` in service-host, subpath
-  `./access-grants`; `readGrants` in `src/core/access-read.ts`, the pure `accessView`, `accessOf`, `anyDeclares` in
-  `src/core/access-view.ts`), MCP `access`, the Access tab on an agent's page (shown once any installed product
-  declares the list; one read serves every tab for 60 s), SCN-123 (draft), its 37 strings in both languages through the
-  copy check. Targeted tests green (`test/access-read.test.ts` 11, `test/mcp.test.ts` 74 with *FD-351*, copy and parity).
-  The full gate could not run here: the disk was under 1 GB and 88 `ENOSPC` failed unrelated tests. The first product
-  (the copy service) ships the list by 2026-11-24 (thread `747c6bb0`).
-- Waits: thread `7f9d0a09` (Switchboard, Fabric), question `037c4d02` (operator), thread `747c6bb0` (products'
+  `./access-grants`; `readGrants` in `src/core/access-read.ts`, the pure `accessView`, `accessOf`, `anyDeclares`,
+  `anyMayAnswer`, `anyRead` in `src/core/access-view.ts`), MCP `access`, the Access tab on an agent's page (shown once
+  any installed product declares the list, or a compact `execute` door answered it; one read serves every tab for
+  60 s), SCN-123 (draft), its 37 strings in both languages through the copy check. Targeted tests green
+  (`test/access-read.test.ts` 12, `test/mcp.test.ts` 74, copy and parity). The full gate could not run here: the disk
+  was under 1 GB and 88 `ENOSPC` failed unrelated tests. The media service merged its list behind its compact door
+  (B-639, ships in its 0.3.151, board `876210e8`); the copy service ships its list by 2026-11-24 (thread `747c6bb0`).
+- Waits: thread `7f9d0a09` (Switchboard's dates above; Fabric not yet), thread `747c6bb0` (products'
   `access.grants.list`), and the rows listed under 0.8.215.
 - Next task: FD-351 to main: `npm ci` and `FD_SKIP_LAUNCHD=1 npm run check` in its worktree once the disk has room
   (over 5 GB free), a CHANGELOG line and the version (0.8.218), merge, tag; SCN-123 goes to implemented when the first
