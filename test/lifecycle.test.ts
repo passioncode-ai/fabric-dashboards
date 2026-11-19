@@ -473,10 +473,10 @@ test('FD-37 LC-10 (Windows): a session that ends mid-command takes the command\'
   assert.equal(alive(), false, 'no orphan survives the session');
 });
 
-test('LC-10: after an update replaces the bundle, the old server answers stale and leaves', async () => {
+test('LC-10 (FD-350): after an update replaces the bundle and no installed copy can start, the old server answers updating, keeps trying, and leaves when its window ends', async () => {
   const app = fakeInstall('1.0.0');
   const services = tmp('fd-mcp-svc-');
-  const s = speak(app.server, { FABRIC_SERVICES_DIR: services });
+  const s = speak(app.server, { FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_MCP_WAIT_MS: '400' });
   s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
   assert.equal((await s.reply(1)).result!.isError, undefined);
   app.update('1.1.0');
@@ -485,12 +485,12 @@ test('LC-10: after an update replaces the bundle, the old server answers stale a
   const stale = (await s.reply(2)).result!;
   assert.equal(stale.isError, true);
   assert.deepEqual(stale.structuredContent, {
-    stale: true, running_version: '1.0.0', installed_version: '1.1.0',
-    action: 'Fabric Dashboards was updated. Restart this agent session to load the new version.',
+    updating: true, running_version: '1.0.0', installed_version: '1.1.0', retry_after_s: 5,
+    action: 'Fabric Dashboards is installing an update and this session moves to the new version. Call again in a few seconds.',
   });
   const exit = await s.exited;
-  assert.equal(exit.code, 0, 'a stale server exits once it has answered');
-  assert.ok(exit.at - at <= 1500, `left ${exit.at - at} ms after the stale call`);
+  assert.equal(exit.code, 0, 'with no installed copy at the end of its window it leaves');
+  assert.ok(exit.at - at >= 300 && exit.at - at <= 6500, `left ${exit.at - at} ms after the call, at the end of its window`);
 });
 
 test('FD-109 LC-10: with the installed launcher present, the stale server hands the session over and the client keeps working', { skip: process.platform === 'win32' && 'a /bin/sh launcher; the Windows launcher path is unit-tested in test/mcp.test.ts' }, async (t) => {

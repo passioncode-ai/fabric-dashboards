@@ -13,7 +13,7 @@ import { setLoopbackConnectionCheck, setLoopbackOwnerCheck, setWindowsAclReader 
 import { linuxConnectionCheck, linuxLoopbackOwnerCheck, loopbackOwnerCheck, macConnectionCheck, windowsLoopbackOwnerCheck } from '../core/loopback-owner';
 import { execRunner } from '../core/launchd';
 import { ACTIONS_META, actionOf, decisionFor, decisionsFile, decisionUsed, recordDecision } from './actions';
-import { HANDED_ENV, HANDOVER_RETRY_MS, HANDOVER_WAIT_MS, launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX, REHAND_WINDOW_MS, startRelay, type Relay } from './handover';
+import { HANDED_ENV, HANDOVER_RETRY_MS, HANDOVER_WAIT_MS, WAIT_ENV, launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX, REHAND_WINDOW_MS, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
 import { appendMcpLog } from './mcp-log';
 import * as tools from './tools';
@@ -324,7 +324,8 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
   const rehands: number[] = []; // FD-150: when each fresh copy was started after the first hand-over
   // FD-350: a failed hand-over is tried again rather than ending the session (the bundle may be mid-install, the new
   // copy slow to answer under load). Only the first server waits: a handed copy exits REHAND_EXIT to its relay.
-  const waitMs = options.waitMs ?? (process.env[HANDED_ENV] !== '1' && launcherOf(__filename) ? HANDOVER_WAIT_MS : 0);
+  const envWait = Number(process.env[WAIT_ENV]);
+  const waitMs = options.waitMs ?? (process.env[HANDED_ENV] === '1' || !launcherOf(__filename) ? 0 : Number.isFinite(envWait) && envWait >= 0 ? envWait : HANDOVER_WAIT_MS);
   const retryMs = options.retryMs ?? HANDOVER_RETRY_MS;
   let waitingSince: number | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;

@@ -17,6 +17,8 @@ export const HANDOVER_TIMEOUT_MS = 15_000;
  *  tried again every HANDOVER_RETRY_MS for HANDOVER_WAIT_MS before the session is given up. */
 export const HANDOVER_RETRY_MS = 5_000;
 export const HANDOVER_WAIT_MS = 10 * 60_000;
+/** The wait in milliseconds, for a test that runs the real server (LC-10); unset in the app. */
+export const WAIT_ENV = 'FABRIC_DASHBOARDS_MCP_WAIT_MS';
 /** FD-133: set in the environment of a server another one started to take its session. Such a server never hands its
  *  session on: one hand-over per update, never a chain of servers starting each other. */
 export const HANDED_ENV = 'FABRIC_DASHBOARDS_MCP_HANDED';
