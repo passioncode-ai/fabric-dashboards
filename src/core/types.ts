@@ -124,6 +124,9 @@ export interface Settings {
     sessionId: string | null;
     /** FD-103 (SCN-078): whether the Ended group is unfolded (folded by default). */
     endedOpen: boolean;
+    /** FD-352 (the operator, 2026-11-19: ended sessions shown, not hidden): the Ended group is folded only when the person
+     *  folded it. Replaces `endedOpen`, which was off by default; that saved value is no longer read. */
+    endedClosed: boolean;
     /** FD-247 (step 6, SCN-109): All sessions' filters; an empty list lets every value through. `machines` holds machine
      *  names, '' for this Mac; `origins` how a session came (`sessions.origin.*`, and `dispatch`). */
     sessionsFilter: { machines: string[]; groups: ('needs-you' | 'running' | 'waiting' | 'ended')[]; origins: string[] };
@@ -245,7 +248,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], pinnedTabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org', orgLabels: {}, orgHidden: [] }, mode: 'agents', sessionId: null, endedOpen: false, sessionsFilter: { machines: [], groups: [], origins: [] }, sessionsFolded: [] },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], pinnedTabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org', orgLabels: {}, orgHidden: [] }, mode: 'agents', sessionId: null, endedOpen: false, endedClosed: false, sessionsFilter: { machines: [], groups: [], origins: [] }, sessionsFolded: [] },
   consoles: {},
   newSession: { runtime: null, folder: null, bypass: true, isolated: false },
   resumeAfterLimit: true,

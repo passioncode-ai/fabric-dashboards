@@ -342,6 +342,9 @@ export function parsePageRows(data: Record<string, unknown>, max = Infinity): Sb
       agent: typeof x.agent === 'string' && /^[a-z][a-z0-9._-]{0,63}$/.test(x.agent) ? x.agent : 'unknown',
       account: str(x.account, 200), origin: word(x.origin), since: ms(x.since), launchId: id(x.launch_id), sessionId: id(x.session_id),
       quietMinutes: quiet, probeAt: ms(x.probe_at),
+      // FD-352: its own wait, as Switchboard read it from the session (`until` in Unix seconds, `held` kept from the idle close).
+      wait: x.wait && typeof x.wait === 'object' && !Array.isArray(x.wait)
+        ? { until: ms((x.wait as Record<string, unknown>).until), held: (x.wait as Record<string, unknown>).held === true } : null,
     });
   }
   return out;

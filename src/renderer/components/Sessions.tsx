@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
 import type { DuplicateSession } from '../../core/duplicate-sessions';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
-import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, tableStateWords, type SessionFilter } from '../../core/sessions-view';
+import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, accountWords, tableStateWords, type SessionFilter } from '../../core/sessions-view';
 import { GROUP_ORDER } from '../../core/sessions';
 import { api, useT } from '../lib';
 import { SESSION_MARK, SessionMark } from './Navigation';
@@ -220,7 +220,8 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
   const byMachine = machineGroups(rows, machines);
   const several = machines.length > 0 || all.some((r) => r.machine);
   // UI wave 7: the Account column only when a shown row has an account (sessions started by hand have none).
-  const withAccount = rows.some((r) => Boolean(r.account));
+  // FD-352: a session started outside Switchboard says it runs on its own sign-in, so the column shows whenever a row names either.
+  const withAccount = rows.some((r) => accountWords(lang, r) !== null);
   const filtering = filterActive(filter, query);
   const toggle = <K extends keyof SessionFilter>(k: K, v: SessionFilter[K][number]) => {
     const list = filter[k] as readonly string[];
@@ -267,7 +268,7 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
                   <td><span className={`state ${SESSION_MARK[r.group].cls}`}><SessionMark group={r.group} /> {tableStateWords(lang, r, { autoContinue: sessions?.autoContinue !== false })}</span></td>
                   <th scope="row" title={projectName(lang, r)}><button className="linkish session-title" onClick={() => open(r.id)}>{projectName(lang, r)}</button></th>
                   <td>{agentName(r.agent)}</td>
-                  {withAccount && <td title={r.account ?? undefined}>{r.account ?? ''}</td>}
+                  {withAccount && <td title={accountWords(lang, r) ?? undefined} className={r.account ? undefined : 'muted'}>{accountWords(lang, r) ?? ''}</td>}
                   <td>{t(`sessions.origin.${originKey(r)}`)}</td>
                   <td className="num">{when ? clock(lang, when) : ''}</td>
                   <td><SessionActions row={r} place="card" open={open} askEnd={askEnd} continued={continued} /></td>
@@ -366,6 +367,7 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
       <div className="session-meta">
         <span className="chip">{originChip(lang, row)}</span>
         {row.account && row.origin !== 'limit' && <span className="chip">{t('sessions.account', { account: row.account })}</span>}
+        {!row.account && (row.origin === 'machine' || row.ownSignIn) && <span className="chip muted">{t('sessions.account.own')}</span>}
         {row.paid && <span className="chip">{t(`sessions.paid.${row.paid}`)}</span>}
         {ctx && <span className="chip">{ctx}</span>}
         <span className="meta">{agentName(row.agent)}</span>
@@ -409,6 +411,7 @@ export function SessionBody({ row, autoContinue = true }: { row: SessionRow; aut
   if (row.state === 'running-unmanaged') return <div className="page session-body"><p>{t('sessions.inMachine')}</p></div>; // FD-231
   // FD-291 step 2: a session started by hand that Switchboard reads as stopped by a limit waits in its own terminal.
   if (row.reason === 'limit-terminal') return <div className="page session-body"><p>{t('sessions.body.limitTerminal')}</p></div>;
+  if (row.state === 'waiting-own') return <div className="page session-body"><p>{t('sessions.body.waitingOwn')}</p></div>; // FD-352
   // FD-108: a limit stop that cannot be continued here never had a console of this app: its card says why, its page that
   // nothing of it runs here and that Remove takes it off the list.
   if (row.state === 'ended-cannot-continue') return <div className="page session-body"><section className="session-panel"><p>{t('sessions.body.notOpened')}</p></section></div>;

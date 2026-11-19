@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.217 - 2026-11-19
+
+### Fixed
+- FD-352: the sessions screen no longer says a session waits for a limit when it waits for its own timer or watch, and
+  says until when. A session started outside Switchboard reads "Own sign-in" instead of a blank account, a console of
+  this app names the account it started on, and a session that failed to start says why in its own last line.
+
+### Changed
+- FD-352: ended sessions are shown unfolded by default.
+
 ## 0.8.216 - 2026-11-19
 
 ### Fixed
