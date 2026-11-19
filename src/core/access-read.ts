@@ -3,8 +3,7 @@
 // answers by service key. A product names the operation in its MCP capabilities, or answers it behind its compact
 // `execute` door; one that does neither is "not declared", never shown as holding nothing. An answer that breaks the
 // shape is refused whole with its reason (checkAccessGrants), never read in part. No key value is read or kept.
-import { ACCESS_GRANTS_OPERATION, checkAccessGrants, type AccessGrants, type Grant } from '@passioncode-ai/fabric-service-host';
-import { authHeaders } from './health';
+import { ACCESS_GRANTS_OPERATION, authHeaders, checkAccessGrants, type AccessGrants, type Grant } from '@passioncode-ai/fabric-service-host';
 import { callCapability, type McpTarget } from './mcp-client';
 
 export type GrantsRead =
