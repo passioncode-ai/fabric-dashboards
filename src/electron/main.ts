@@ -472,15 +472,20 @@ if (!app.requestSingleInstanceLock()) {
 
   // Embedded dashboards are released once the window has been hidden for the grace period: first all but the
   // WARM_VIEWS shown most recently (FD-74), then, after VIEW_RELEASE_ALL_MS, every one.
-  const viewGrace = new HiddenGrace(VIEW_RELEASE_GRACE_MS, () => {
+  // FD-338: FD_TEST_VIEW_RELEASE_MS shortens the first grace (the second is three times it) so the e2e suite can watch a
+  // release without five minutes of wall clock; honoured only when the app is not packaged (as FD_TEST_REMOTE_MS).
+  const testRelease = !app.isPackaged ? Number(process.env.FD_TEST_VIEW_RELEASE_MS) : Number.NaN;
+  const releaseMs = testRelease > 0 ? testRelease : VIEW_RELEASE_GRACE_MS;
+  const releaseAllMs = testRelease > 0 ? testRelease * 3 : VIEW_RELEASE_ALL_MS;
+  const viewGrace = new HiddenGrace(releaseMs, () => {
     const count = views?.releaseCold(WARM_VIEWS) ?? 0;
-    if (count) log(`released ${count} dashboard view(s) after ${VIEW_RELEASE_GRACE_MS / 60_000} min hidden; kept ${views?.keys().length ?? 0}`);
+    if (count) log(`released ${count} dashboard view(s) after ${releaseMs / 60_000} min hidden; kept ${views?.keys().length ?? 0}`);
   });
-  const viewGraceAll = new HiddenGrace(VIEW_RELEASE_ALL_MS, () => {
+  const viewGraceAll = new HiddenGrace(releaseAllMs, () => {
     const count = views?.keys().length ?? 0;
     if (!count) return;
     views?.releaseAll();
-    log(`released ${count} dashboard view(s) after ${VIEW_RELEASE_ALL_MS / 60_000} min hidden`);
+    log(`released ${count} dashboard view(s) after ${releaseAllMs / 60_000} min hidden`);
   });
   // #region auto-install-flow — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
   // ADR-0015: a downloaded update installs by itself once the window has been hidden for
