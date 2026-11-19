@@ -24,6 +24,19 @@ export function shortPath(p: string): string {
   return home ? `~${p.slice(home.length)}` : p;
 }
 
+/** FD-335: a path in one line whose start gives way first, so its last folder's name stays on screen. */
+export function PathText({ path, className = '', title }: { path: string; className?: string; title?: string }) {
+  const { head, tail } = pathParts(path);
+  return <span className={`path-fit ${className}`.trim()} title={title ?? path}><span className="path-head">{head}</span><span className="path-tail">{tail}</span></span>;
+}
+
+/** FD-335: a path split before its last folder, so a narrow field shortens the start and the folder's name stays seen. */
+export function pathParts(p: string): { head: string; tail: string } {
+  const short = shortPath(p);
+  const cut = Math.max(short.lastIndexOf('/', short.length - 2), short.lastIndexOf('\\', short.length - 2));
+  return cut > 0 ? { head: short.slice(0, cut), tail: short.slice(cut) } : { head: '', tail: short };
+}
+
 /** What a refused action says, in one sentence. */
 export function failText(t: T, r: Extract<SessionActionResult, { ok: false }>, o: { action: 'end' | 'reveal' | 'continue' | 'dismiss' | 'attach'; folder: string }): string {
   if (o.action === 'end') return t('sessions.endFailed', { reason: r.detail ?? r.reason });
@@ -356,7 +369,7 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
         {row.paid && <span className="chip">{t(`sessions.paid.${row.paid}`)}</span>}
         {ctx && <span className="chip">{ctx}</span>}
         <span className="meta">{agentName(row.agent)}</span>
-        <span className="meta mono session-folder" title={row.folder}>{shortPath(row.folder)}</span>
+        <PathText path={row.folder} className="meta mono session-folder" />
       </div>
       <SessionChain row={row} />
       {long && <p className="session-why">{stateWords(lang, row, { autoContinue })}</p>}
@@ -413,7 +426,7 @@ export function SessionBody({ row, autoContinue = true }: { row: SessionRow; aut
           {row.held && <p className="notice warning" role="status">{heldText(t, lang, row.held)}</p>}
           <p>{now}</p>
           <dl className="session-facts">
-            <div><dt>{t('sessions.body.folder')}</dt><dd className="mono" title={row.folder}>{shortPath(row.folder)}</dd></div>
+            <div><dt>{t('sessions.body.folder')}</dt><dd className="mono"><PathText path={row.folder} /></dd></div>
             {row.startedAt && <div><dt>{t('sessions.body.stopped')}</dt><dd>{clock(lang, row.startedAt)}</dd></div>}
           </dl>
         </section>

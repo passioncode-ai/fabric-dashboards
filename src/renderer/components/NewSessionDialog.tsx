@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MachineFolders, NewSessionOptions, NewSessionResult } from '../../core/api';
 import { api, Spinner, useT } from '../lib';
-import { shortPath } from './Sessions';
+import { PathText, shortPath } from './Sessions';
 
 type T = (key: string, params?: Record<string, string | number>) => string;
 
@@ -157,7 +157,7 @@ export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: 
                 : <>
                   <span className="new-session-label" id="new-session-folder-label">{t('newSession.folder')}</span>
                   <div className="row new-session-folder">
-                    <span className="mono" title={folder} aria-labelledby="new-session-folder-label">{shortPath(folder)}</span>
+                    <span className="mono" aria-labelledby="new-session-folder-label"><PathText path={folder} /></span>
                     <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void pick()}>{t('newSession.change')}</button>
                   </div>
                 </>}

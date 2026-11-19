@@ -76,7 +76,9 @@ test('FD-107: a waiting session\'s page says what happens next, the folder and w
   const en = text(body(waiting));
   assert.match(en, new RegExp(`Switchboard tries this session again at about ${clock('en', AT + 88 * 60_000)} on an account with capacity\\.`));
   assert.match(en, /Continue now on another account, or choose "Do not continue"\./);
-  assert.match(en, /\/work\/fabric-switchboard/);
+  // FD-335: the folder is one line whose start gives way first; its whole path is the title, its last folder always shown.
+  assert.match(body(waiting), /title="\/work\/fabric-switchboard"/);
+  assert.match(en, /\/work \/fabric-switchboard/, 'the head and the last folder, in that order');
   assert.match(en, new RegExp(`Stopped ${clock('en', AT - 12 * 60_000)}`));
   const ru = text(body(waiting, 'ru'));
   assert.match(ru, new RegExp(`Switchboard попробует продолжить эту сессию около ${clock('ru', AT + 88 * 60_000)} на аккаунте с запасом\\.`));

@@ -11,6 +11,7 @@ import { CONSOLE_HEIGHT } from '../../core/types';
 import { pageExitLine, terminalKey } from '../../core/sessions-view';
 import { runtimeRow } from '../../core/console-view';
 import { api, Icon, Spinner, useT } from '../lib';
+import { PathText } from './Sessions';
 
 interface Props {
   serviceKey: string;
@@ -42,12 +43,6 @@ function themeOf(): { background: string; foreground: string; cursor: string; se
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return { background: v('--pc-bg', '#0a070d'), foreground: v('--pc-text', '#ececec'), cursor: v('--pc-accent', '#f5c518'), selectionBackground: v('--pc-border', '#444') };
-}
-
-/** `~/…` for a path under the home folder. */
-function shortPath(p: string): string {
-  const home = /^\/Users\/[^/]+/.exec(p)?.[0];
-  return home ? `~${p.slice(home.length)}` : p;
 }
 
 export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken, page = false, onFocusOut, active = true, expand, onExpand }: Props) {
@@ -364,7 +359,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
         {handover && <p className="console-row console-line meta" role="status">{handover.kind === 'resume' ? t('console.resumed', { agent: handover.agent }) : t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || t('word.notRecorded') })}</p>}
         {!ownHandover && <div className="console-row meta">
           {info?.folder
-            ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` (${t('console.foundFrom')})` : ''}`}>{shortPath(info.folder.path)}</span>
+            ? <PathText path={info.folder.path} className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` (${t('console.foundFrom')})` : ''}`} />
             : <span className="console-folder muted">{t('console.folder')}: {t('console.folderNone')}</span>}
           <button className="btn btn-sm" disabled={running} onClick={() => void api().consolePickFolder(serviceKey).then((i) => { setInfo(i); setNotice(null); })}>{info?.folder ? t('console.other') : t('console.chooseFolder')}</button>
           {bound && <span className="chip" title={t('console.project', { name: bound.name })}>{t('console.project', { name: bound.name })}</span>}

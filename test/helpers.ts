@@ -57,3 +57,22 @@ export function stopProcess(p: ChildProcess): Promise<void> {
     p.kill('SIGTERM');
   });
 }
+
+/**
+ * FD-335: a screen capture for the walk of the launch screens. With `FD_SCREENSHOTS` set it writes `<name>.png`, and with
+ * `FD_SCREENSHOT_WIDTHS` (`1200,700`) one `<name>-<width>.png` per window width, the window put back as it was after.
+ */
+export async function shot(app: { evaluate: (fn: (m: typeof import('electron'), w: number) => unknown, w: number) => Promise<unknown> }, page: { screenshot: (o: { path: string }) => Promise<unknown>; waitForTimeout: (ms: number) => Promise<void> }, name: string): Promise<void> {
+  const dir = process.env.FD_SCREENSHOTS;
+  if (!dir) return;
+  const widths = (process.env.FD_SCREENSHOT_WIDTHS ?? '').split(',').map((w) => Number(w.trim())).filter((w) => w >= 400 && w <= 4000);
+  if (!widths.length) { await page.screenshot({ path: path.join(dir, `${name}.png`) }); return; }
+  const before = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getSize()[0] ?? 0, 0) as number;
+  for (const w of widths) {
+    await app.evaluate(({ BrowserWindow }, width) => { const win = BrowserWindow.getAllWindows()[0]; if (win) win.setSize(width, win.getSize()[1]!); }, w);
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(dir, `${name}-${w}.png`) });
+  }
+  if (before) await app.evaluate(({ BrowserWindow }, width) => { const win = BrowserWindow.getAllWindows()[0]; if (win) win.setSize(width, win.getSize()[1]!); }, before);
+  await page.waitForTimeout(800); // the page lays out again and moves the dashboard's view before the test reads it
+}
