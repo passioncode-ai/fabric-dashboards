@@ -23,10 +23,10 @@ test; both fold into 0.8.108).
   and Fabric on the board, thread `7f9d0a09` (also: attribute a process Switchboard did not launch by its config home;
   31 of 41 live sessions here have no account).
 - Mac Studio: a New session there ended at once with «Select an account for this provider first»: its groups other
-  than the default held no account. Done 16:30 UTC on the operator's approval relayed on the board (`de0ba93c`,
-  thread `16d0823a`): the organization's work account is in Agents (its home) and shared with Apps & Soft, PassionCode and
-  PassionCode.ai on `studio-sshlg`. Left: one account cannot also stay in the default group there (moving it home
-  drops the shares; a feed lends it whole), so folders in no group on Studio have no account until a second one.
+  than the default held no account. The operator answered 16:46 UTC (board `6d133b1e`): «Рабочий аккаунт только в две
+  группы PassionCode». Done 17:03 UTC on `studio-sshlg`: the organization's work account is in PassionCode (its home)
+  and shared with PassionCode.ai; Agents and Apps & Soft hold no account there, so sessions in their folders on Studio
+  do not start until another account is connected (an earlier step had put it in all four on a relayed approval).
 - Switchboard answered thread `7f9d0a09` (`5ec57522`): `--json status` and «no account in the group» for another
   machine (with `launch --target` refusing before it starts) by 2026-11-24; sessions it did not launch attributed by
   config home by 2026-11-26; its design answer for the bundled engine by 2026-11-26.
