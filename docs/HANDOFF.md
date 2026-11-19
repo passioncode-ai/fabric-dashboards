@@ -7,6 +7,18 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.209: the launch screens walked; a long folder keeps its name (2026-11-19)
+
+0.8.208 (FD-331): a link-written descriptor names `source.repository` from studio-agent's `showcase-hosts/1` and
+`installedBy` as DEC-0061 `{ by: organization, tool }` (studio-agent answered `836c84ed`; its Worker 0.3.0 deploy is
+the live readback). 0.8.209 (FD-335 done): the launch screens walked on the built app at 1200 and 960 px
+(`FD_SCREENSHOTS`, `FD_SCREENSHOT_WIDTHS`, `shot` in `test/helpers.ts`); the one defect found, a long folder cut at its
+end, is fixed in New session, a session's page, the session list and the console header (`PathText`). Lesson recorded:
+a rate limit added in code broke a burst e2e outside the gate (`mem:a95e054242094750`). Waits: FD-337 for SB-479;
+FD-331's live readback for studio-agent's Worker 0.3.0; Change on an online agent for FD-194; FD-322 not before
+2026-11-25. Next task: FD-338's rest (a view's reload after its agent restarts, the warm-view grace, a page's session
+across an update) on the built app, with the screen unlocked and load under 40.
+
 ## 0.8.207: `<domain>.execute` doors; the e2e suite green again (2026-11-19)
 
 Published: 0.8.207 (2026-11-19 03:30 UTC tag, run 44451879708, 16 assets): FD-343, Change on a spending limit reaches
