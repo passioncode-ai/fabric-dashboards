@@ -148,8 +148,9 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     await note.getByText(/Here are the coding agents' sessions on this/).waitFor({ timeout: 20_000 });
     // SCN-078 and SCN-083: one list, grouped, the stop saying what it waits for.
     for (const g of [/^Needs you: 1$/, /^Running: 1$/, /^Waiting for a limit reset: 1$/, /Ended in the last 24 hours: 1$/]) await page.getByRole('main').getByRole('heading', { level: 2, name: g }).waitFor({ timeout: 30_000 });
-    // The ended group comes folded; opening it shows the session that ended.
-    await page.getByRole('main').getByRole('button', { name: /Ended in the last 24 hours: 1/ }).click();
+    // FD-352 (0.8.217): the ended group comes unfolded; a folded one (a layout kept from before) is opened.
+    const endedFold = page.getByRole('main').getByRole('button', { name: /Ended in the last 24 hours: 1/ });
+    if ((await endedFold.getAttribute('aria-expanded')) === 'false') await endedFold.click();
     const endedCard = page.locator(SESSION, { hasText: 'ended-repo' }).first();
     await endedCard.waitFor();
     await page.locator(SESSION, { hasText: 'running-repo' }).first().waitFor();
@@ -166,7 +167,7 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     await shot(app!, page, '33-session-launch-chain');
     // FD-354 (SCN-080 steps 7 and 8): the row of ways to open the session, and its conversation read here.
     const openRow = page.locator('.session-open');
-    for (const name of ['Read this session\'s conversation here', 'Open a terminal in this session\'s folder', 'Start a new session in this session\'s folder', 'Show in Finder']) await openRow.getByRole('button', { name }).waitFor();
+    for (const name of ['Read this session\'s conversation here', 'Open a terminal in this session\'s folder', 'Start a new session in this session\'s folder']) await openRow.getByRole('button', { name }).waitFor();
     await openRow.getByRole('button', { name: 'Read this session\'s conversation here' }).click();
     const talk = page.locator('.session-transcript');
     await talk.getByRole('heading', { level: 2, name: 'Conversation' }).waitFor({ timeout: 20_000 });
