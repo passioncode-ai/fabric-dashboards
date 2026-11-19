@@ -120,7 +120,7 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
   const record = (dir: string, state: string, launched: number) => ({ working_directory: dir, home: path.join(base, 'home'), provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', label: 'claude4', account_id: 'acc-1', in_place: false, launched_at: launched, started_at: launched, state });
   // FD-124: the ended session carries Switchboard 0.7.0's launch facts; its transcript is a real file.
   const transcript = path.join(base, 'transcript.jsonl');
-  fs.writeFileSync(transcript, '{}\n');
+  fs.writeFileSync(transcript, `${JSON.stringify({ type: 'user', message: { role: 'user', content: 'Fix the nightly build' } })}\n${JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'The build is fixed.' }, { type: 'tool_use', name: 'Bash' }] } })}\n`);
   const launch = { launch_id: '0b8f6c1e-1f2a-4c3d-9e8f-0123456789ab', launched_by: { surface: 'fallback', by: 'nightly-agent', caller_program: 'switchboard' }, transcript, turns: 7, ended: 'limit', ended_at: now - 7000, continued_as: { kind: 'handover', id: 'ho-00000000beef' } };
   const sessions = JSON.stringify({ ok: true, data: { sessions: [record(running!, 'running', now - 1800), { ...record(ended!, 'ended', now - 7200), ...launch }] } });
   const recovery = JSON.stringify({ ok: true, data: { sessions: [{ ready: false, reason: 'no_account', candidates: [], probe_at: null, stop: { event: 'ev-stopped-1', session: '0b2c3d4e-0000-4000-8000-00000000c0de', directory: stopped, provider: 'claude', state: 'waiting', kind: 'limit', stopped_at: now - 600, attempt: 1, account: 'acc-1' } }] } });
@@ -148,8 +148,9 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     await note.getByText(/Here are the coding agents' sessions on this/).waitFor({ timeout: 20_000 });
     // SCN-078 and SCN-083: one list, grouped, the stop saying what it waits for.
     for (const g of [/^Needs you: 1$/, /^Running: 1$/, /^Waiting for a limit reset: 1$/, /Ended in the last 24 hours: 1$/]) await page.getByRole('main').getByRole('heading', { level: 2, name: g }).waitFor({ timeout: 30_000 });
-    // The ended group comes folded; opening it shows the session that ended.
-    await page.getByRole('main').getByRole('button', { name: /Ended in the last 24 hours: 1/ }).click();
+    // FD-352 (0.8.217): the ended group comes unfolded; a folded one (a layout kept from before) is opened.
+    const endedFold = page.getByRole('main').getByRole('button', { name: /Ended in the last 24 hours: 1/ });
+    if ((await endedFold.getAttribute('aria-expanded')) === 'false') await endedFold.click();
     const endedCard = page.locator(SESSION, { hasText: 'ended-repo' }).first();
     await endedCard.waitFor();
     await page.locator(SESSION, { hasText: 'running-repo' }).first().waitFor();
@@ -164,6 +165,16 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     await chain.getByRole('button', { name: "Show this session's transcript in the file manager" }).waitFor();
     assert.equal(await chain.getByText(transcript).count(), 0, 'the transcript path is never drawn');
     await shot(app!, page, '33-session-launch-chain');
+    // FD-354 (SCN-080 steps 7 and 8): the row of ways to open the session, and its conversation read here.
+    const openRow = page.locator('.session-open');
+    for (const name of ['Read this session\'s conversation here', 'Open a terminal in this session\'s folder', 'Start a new session in this session\'s folder']) await openRow.getByRole('button', { name }).waitFor();
+    await openRow.getByRole('button', { name: 'Read this session\'s conversation here' }).click();
+    const talk = page.locator('.session-transcript');
+    await talk.getByRole('heading', { level: 2, name: 'Conversation' }).waitFor({ timeout: 20_000 });
+    for (const said of ['Fix the nightly build', 'The build is fixed.', 'Bash']) await talk.getByText(said, { exact: true }).waitFor();
+    await shot(app!, page, '33b-session-conversation');
+    await talk.getByRole('button', { name: 'Close' }).click();
+    await talk.waitFor({ state: 'detached' });
     await page.locator('nav .nav-item', { hasText: 'All sessions' }).first().click();
     await page.getByRole('heading', { level: 1, name: 'All sessions' }).waitFor();
     if (!(await endedCard.isVisible())) await page.getByRole('main').getByRole('button', { name: /Ended in the last 24 hours: 1/ }).click();

@@ -16,7 +16,7 @@ import { AgentsNav, ModeSwitch, SessionsNav, type AgentsPage, type Mode, type Ro
 import { RenameDialog } from './components/RenameDialog';
 import { ConnectAgentDialog } from './components/ConnectAgentDialog';
 import { AnalyticsNotice } from './components/AnalyticsNotice';
-import { AllSessions, hasConsole, SessionBody, SessionHeader } from './components/Sessions';
+import { AllSessions, hasConsole, SessionBody, SessionHeader, SessionTranscript } from './components/Sessions';
 import { NewSessionDialog } from './components/NewSessionDialog';
 import { dispatchLines, resolveSessionRoute } from '../core/sessions-view';
 import type { SessionRow } from '../core/sessions';
@@ -288,6 +288,10 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   const [connecting, setConnecting] = useState(false); // FD-331
   // FD-247: the machine a machine heading's New session chose (null: the dialog's own choice).
   const [newSessionMachine, setNewSessionMachine] = useState<string | null>(null);
+  // FD-354: New session from a session's page: its folder chosen in the dialog.
+  const [newSessionFolder, setNewSessionFolder] = useState<string | null>(null);
+  // FD-354: the session whose conversation the page shows (Open session).
+  const [readingSession, setReadingSession] = useState<string | null>(null);
   // Wave 1 (U-06): the New session dialog makes the page inert and hides native views, as every other dialog does.
   const stopOpen = Boolean(stopping) || Boolean(ending) || Boolean(renaming) || noticeOpen || Boolean(newSession);
   useEffect(() => {
@@ -525,8 +529,12 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
         {route.page === 'session'
           ? (sessionRow
             ? <div className="session-page">
-              <SessionHeader row={sessionRow} autoContinue={status.sessions?.autoContinue !== false} open={openSession} askEnd={askEnd} continued={followContinue} onMenu={setMenuOverPage} />
-              {pageConsole ? <div className="session-console-area" aria-hidden="true" /> : <SessionBody row={sessionRow} autoContinue={status.sessions?.autoContinue !== false} />}
+              <SessionHeader row={sessionRow} autoContinue={status.sessions?.autoContinue !== false} open={openSession} askEnd={askEnd} continued={followContinue} onMenu={setMenuOverPage}
+                reading={readingSession === sessionRow.id} onRead={(on) => setReadingSession(on ? sessionRow.id : null)}
+                onNewHere={(r) => { setNewSessionMachine(r.machine); setNewSessionFolder(r.folder); setNewSession('session'); }} />
+              {pageConsole ? <div className="session-console-area" aria-hidden="true" />
+                : readingSession === sessionRow.id ? <SessionTranscript row={sessionRow} onClose={() => setReadingSession(null)} />
+                  : <SessionBody row={sessionRow} autoContinue={status.sessions?.autoContinue !== false} />}
             </div>
             : <div className="page-wrap"><div className="page"><p className="muted row" role="status"><Spinner /> {t('sessions.reading')}</p></div></div>)
         : route.page === 'service' && current
@@ -577,8 +585,8 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
       <AnalyticsNotice available={Boolean(status.analyticsAvailable)} onOpen={setNoticeOpen} earlierNo={status.analyticsHold === 'earlier-no'} />
       {connecting && <ConnectAgentDialog onClose={() => setConnecting(false)} />}
       {renaming && <RenameDialog key={renaming.key} s={renaming} onClose={() => setRenameKey(null)} />}
-      {newSession && <NewSessionDialog kind={newSession} machine={newSessionMachine ?? undefined} onClose={() => { setNewSession(null); setNewSessionMachine(null); }}
-        onStarted={(key) => { setNewSession(null); setNewSessionMachine(null); setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS }); }} />}
+      {newSession && <NewSessionDialog kind={newSession} machine={newSessionMachine ?? undefined} folder={newSessionFolder ?? undefined} onClose={() => { setNewSession(null); setNewSessionMachine(null); setNewSessionFolder(null); }}
+        onStarted={(key) => { setNewSession(null); setNewSessionMachine(null); setNewSessionFolder(null); setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS }); }} />}
       {ending && (
         <div className="scrim" role="presentation">
           <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="end-title" aria-describedby="end-body">

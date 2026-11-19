@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
 import type { DuplicateSession } from '../../core/duplicate-sessions';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
+import type { TranscriptAnswer } from '../../core/transcript';
 import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, accountWords, tableStateWords, type SessionFilter } from '../../core/sessions-view';
 import { GROUP_ORDER } from '../../core/sessions';
 import { api, useT } from '../lib';
@@ -122,7 +123,7 @@ export function SessionActions({ row, place, open, askEnd, continued, onMenu }: 
     // FD-211: a session Switchboard's session host holds opens in this app; closing it here leaves it running.
     has('attach') && <button key="attach" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void run('attach', () => api().sessionsAttach(row.id, size))}>{t('sessions.attach')}</button>,
     has('end') && <button key="end" className="btn btn-sm btn-danger" onClick={() => askEnd(row)}>{t('sessions.end')}</button>,
-    has('reveal') && <button key="reveal" className="btn btn-sm" disabled={busy} onClick={() => void run('reveal', () => api().sessionsReveal(row.id))}>{revealLabel(lang, platformOf())}</button>,
+    has('reveal') && place === 'card' && <button key="reveal" className="btn btn-sm" disabled={busy} onClick={() => void run('reveal', () => api().sessionsReveal(row.id))}>{revealLabel(lang, platformOf())}</button>,
     has('dontContinue') && <button key="dont" className="btn btn-sm" disabled={busy} onClick={() => void run('dismiss', () => api().sessionsDismiss(row.id))}>{t('sessions.dontContinue')}</button>,
     has('dismiss') && <button key="dismiss" className="btn btn-sm" disabled={busy} onClick={() => void run('dismiss', () => api().sessionsDismiss(row.id))}>{t('sessions.remove')}</button>,
   ].filter(Boolean);
@@ -351,7 +352,7 @@ export const hasConsole = (row: SessionRow): boolean => Boolean(row.key) && (row
 
 /** SCN-080: a session's page header: the project, the state in words, the origin, account and context chips, the coding
  *  agent and the folder, and the state's actions on the right. Its bottom edge is where the console starts. */
-export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMenu }: Omit<ActionsProps, 'place'> & { row: SessionRow; autoContinue: boolean }) {
+export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMenu, reading, onRead, onNewHere }: Omit<ActionsProps, 'place'> & { row: SessionRow; autoContinue: boolean } & OpenBarProps) {
   const { t, lang } = useT();
   const mark = SESSION_MARK[row.group];
   const ctx = contextChip(lang, row);
@@ -373,12 +374,109 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
         <span className="meta">{agentName(row.agent)}</span>
         <PathText path={row.folder} className="meta mono session-folder" />
       </div>
+      <SessionOpenBar row={row} continued={continued} reading={reading} onRead={onRead} onNewHere={onNewHere} />
       <SessionChain row={row} />
       {long && <p className="session-why">{stateWords(lang, row, { autoContinue })}</p>}
       {row.origin === 'resume' && row.group === 'running' && <p className="meta session-why">{t('console.resumed', { agent: agentName(row.agent) })}</p>}
     </header>
   );
 }
+
+// #region session-open — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
+interface OpenBarProps {
+  /** FD-354: Open session shows the session's conversation in the page body; `reading` says it is shown. */
+  reading?: boolean;
+  onRead?: (on: boolean) => void;
+  /** FD-354: New session, the dialog with this session's machine and folder chosen. */
+  onNewHere?: (row: SessionRow) => void;
+}
+
+/** FD-354 (SCN-080 step 6, the operator 2026-11-19, board `57445717`): the ways to open a session from its page, under
+ *  its header: its conversation here, a terminal in its folder, a new session in the same folder, its folder in Finder.
+ *  Open in Fabric and Attach here come with Fabric's shared launch path (FD-354 step 2). */
+export function SessionOpenBar({ row, continued, reading, onRead, onNewHere }: Pick<ActionsProps, 'continued'> & { row: SessionRow } & OpenBarProps) {
+  const { t, lang } = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const act = async (action: 'reveal' | 'terminal', call: () => Promise<SessionActionResult>) => {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await call();
+      if (!r.ok) setError(action === 'terminal' ? terminalFailText(t, r) : failText(t, r, { action, folder: row.folder }));
+      else if (action === 'terminal' && r.key) continued(r.key);
+    } catch (e) {
+      setError(t('sessions.terminalFailed', { reason: String((e as Error)?.message ?? e) }));
+    } finally { setBusy(false); }
+  };
+  const canRead = Boolean(row.launch?.transcript) && !hasConsole(row) && Boolean(onRead);
+  const buttons = [
+    canRead && <button key="read" className="btn btn-sm" aria-pressed={Boolean(reading)} aria-label={t('sessions.openSession.label')} onClick={() => onRead?.(!reading)}>{t('sessions.openSession')}</button>,
+    row.folder && <button key="terminal" className="btn btn-sm" disabled={busy} aria-label={t('sessions.terminal.label')} onClick={() => void act('terminal', () => api().sessionsTerminal(row.id, { cols: 120, rows: 32 }))}>{t('sessions.terminal')}</button>,
+    row.folder && onNewHere && <button key="new" className="btn btn-sm" aria-label={t('sessions.newHere.label')} onClick={() => onNewHere(row)}>{t('newSession.button')}</button>,
+    row.actions.includes('reveal') && <button key="reveal" className="btn btn-sm" disabled={busy} onClick={() => void act('reveal', () => api().sessionsReveal(row.id))}>{revealLabel(lang, platformOf())}</button>,
+  ].filter(Boolean);
+  if (!buttons.length) return null;
+  return (
+    <div className="session-open" role="group" aria-label={t('sessions.open.label')}>
+      <div className="row-actions">{buttons}</div>
+      {error && <p className="notice error session-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+/** FD-354: why Open session terminal did not open. */
+export function terminalFailText(t: T, r: Extract<SessionActionResult, { ok: false }>): string {
+  if (r.reason === 'no-folder') return t('sessions.reason.no-folder');
+  if (r.reason === 'admission') return t(r.detail === 'disk' || r.detail === 'cap' || r.detail === 'swap' || r.detail === 'pool' ? `sessions.reason.busy-${r.detail}` : 'sessions.reason.busy');
+  if (r.reason === 'remote') return t(remoteRefusal(r.detail));
+  return t('sessions.terminalFailed', { reason: r.detail ?? r.reason });
+}
+
+/** FD-354 (SCN-080 step 6): Open session: the end of the session's own conversation, read from its transcript in the
+ *  main process; what the person asked, what the agent answered, the tools it ran by name. */
+export function SessionTranscript({ row, onClose }: { row: SessionRow; onClose: () => void }) {
+  const { t, lang } = useT();
+  const [read, setRead] = useState<TranscriptAnswer | null>(null);
+  const end = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    let live = true;
+    setRead(null);
+    void api().sessionsTranscript(row.id).then((r) => { if (live) setRead(r); })
+      .catch((e: Error) => { if (live) setRead({ ok: false, reason: 'spawn', detail: e.message }); });
+    return () => { live = false; };
+  }, [row.id]);
+  useEffect(() => { if (read?.ok) end.current?.scrollIntoView({ block: 'end' }); }, [read]);
+  return (
+    <div className="page session-body">
+      <section className="session-transcript" aria-label={t('sessions.transcript.title')}>
+        <div className="session-transcript-head">
+          <h2>{t('sessions.transcript.title')}</h2>
+          <span className="spacer" />
+          <button className="btn btn-sm" aria-label={t('sessions.transcript.label')} onClick={() => void api().sessionsRevealTranscript(row.id)}>{t('sessions.transcript')}</button>
+          <button className="btn btn-sm" onClick={onClose}>{t('sessions.transcript.close')}</button>
+        </div>
+        {!read && <p className="muted row" role="status"><span className="spinner" aria-hidden="true" /> {t('sessions.transcript.reading')}</p>}
+        {read && !read.ok && <p className="notice" role="status">{read.reason === 'no-transcript' ? t('sessions.transcript.gone') : t('sessions.transcript.failed', { reason: read.detail ?? read.reason })}</p>}
+        {read?.ok && read.unknown && <p className="notice" role="status">{t('sessions.transcript.unknown')}</p>}
+        {read?.ok && !read.unknown && read.entries.length === 0 && <p className="muted">{t('sessions.transcript.empty')}</p>}
+        {read?.ok && read.truncated && read.entries.length > 0 && <p className="meta">{t('sessions.transcript.earlier', { n: read.entries.length })}</p>}
+        {read?.ok && read.entries.length > 0 && (
+          <ol className="transcript">
+            {read.entries.map((e, i) => (
+              <li key={i} className={`transcript-${e.who}`}>
+                <p className="meta">{t(`sessions.transcript.${e.who}`)}{e.at ? ` · ${clock(lang, e.at)}` : ''}</p>
+                {e.who === 'tools' ? <p className="meta mono">{e.text}</p> : <div className="transcript-text">{e.text}</div>}
+              </li>
+            ))}
+          </ol>
+        )}
+        <div ref={end} />
+      </section>
+    </div>
+  );
+}
+// #endregion session-open
 
 /** FD-124 (SCN-080): what Switchboard's launch record says, folded under one line so the console keeps its height: who
  *  started the session, how it ended, where its work went, and the transcript shown in the file manager. */

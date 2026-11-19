@@ -914,3 +914,16 @@ div.session-group-head h2 { margin: 0; }
 .bug-list { list-style: none; margin: var(--pc-space-2) 0 0; padding: 0; display: grid; gap: var(--pc-space-1); }
 .bug-row { display: flex; align-items: baseline; gap: var(--pc-space-2); min-width: 0; }
 .bug-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--pc-type-meta); }
+/* FD-354 (SCN-080 step 6): the ways to open a session, under its header, and its conversation read in the page body. */
+.session-open { display: flex; flex-direction: column; gap: var(--pc-space-1); }
+.session-open .row-actions { display: flex; align-items: center; gap: var(--pc-space-2); flex-wrap: wrap; }
+.session-transcript { max-width: 860px; display: grid; gap: var(--pc-space-3); }
+.session-transcript-head { display: flex; align-items: center; gap: var(--pc-space-2); flex-wrap: wrap; }
+.session-transcript-head h2 { margin: 0; font-size: var(--pc-type-section); }
+.transcript { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--pc-space-3); }
+.transcript > li { display: grid; gap: var(--pc-space-1); min-width: 0; }
+.transcript > li > .meta { margin: 0; }
+.transcript-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; max-width: 80ch; }
+.transcript-you .transcript-text { padding: var(--pc-space-2) var(--pc-space-3); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); }
+.transcript-tools .mono { color: var(--pc-text-muted); overflow-wrap: anywhere; }
+.session-open .btn { min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); white-space: nowrap; }

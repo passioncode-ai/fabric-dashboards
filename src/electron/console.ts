@@ -19,7 +19,8 @@ import { readFallback, writeFallback, type FallbackChange, type FallbackRead } f
 import { prepareSetup, SETUP_KEY, setupFolder, setupSignals, writeSetupRequest, type SetupState } from '../core/setup';
 import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
-import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
+import { ConsoleManager, planStart, shellQuote, terminalScript, type SpawnPty } from '../core/consoles';
+import { parseTranscript, TRANSCRIPT_TAIL_BYTES, type TranscriptAnswer } from '../core/transcript';
 import { dropKept, loadKept, saveKept } from '../core/kept-output';
 import { admit, machineProbe, parseCapacity, type Admission, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
@@ -40,7 +41,7 @@ import { HandoverBook } from '../core/handover-book';
 import { StopClaims } from '../core/stop-claims';
 import { RecoveryBook } from '../core/recovery-book';
 import { ownedRunner } from '../core/children';
-import { attachOwnKey, consoleRowId, lastLine, degradedSince, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
+import { attachOwnKey, consoleRowId, lastLine, degradedSince, dropRemoteTwins, folderTerminalKey, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -208,6 +209,8 @@ export class ConsoleHost {
   private readonly attachedOf = new Map<string, string>();
   /** FD-247 (step 7b): the consoles that hold a login shell on another machine, by key. */
   private readonly terminalOf = new Map<string, string>();
+  /** FD-354: the folder a session's terminal on another machine opens in, by key (its cwd here is the home folder). */
+  private readonly terminalFolderOf = new Map<string, string>();
   /** FD-211: consoles whose own session runs in Switchboard's session host (`launch --hosted`). */
   private readonly hostedKeys = new Set<string>();
   /** FD-211: hosted consoles whose view this app closed while their session runs on (the app quitting). */
@@ -564,7 +567,7 @@ export class ConsoleHost {
   private readonly remoteRuns = new Map<string, string>();
   /** The folder a session works in, as a person reads it: a hand-over's, the other machine's (FD-204), else its own. */
   private shownFolder(key: string, cwd: string): string {
-    return this.handoverOf.get(key)?.dir ?? this.remoteRuns.get(key) ?? cwd;
+    return this.handoverOf.get(key)?.dir ?? this.remoteRuns.get(key) ?? this.terminalFolderOf.get(key) ?? cwd;
   }
   private async remoteAccess(route: SshRoute): Promise<RemoteAccess> {
     const seen = this.accessSeen.get(route.via);
@@ -1875,6 +1878,49 @@ export class ConsoleHost {
   }
   // #endregion remote-actions
 
+  // #region session-open — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
+  /** FD-354 (SCN-080 step 6): Open session terminal: a login shell in the session's folder, in a console of its own;
+   *  on another machine, `ssh -t` into that folder there. One console per machine and folder (a second press finds it).
+   *  The folder comes from the row in this process, never from the page. Held back by the count and swap (LC-17). */
+  async openSessionTerminal(id: string, size = { cols: 120, rows: 32 }): Promise<SessionActionResult> {
+    const row = this.rowOf(id);
+    if (!row) return { ok: false, reason: 'unknown' };
+    if (!row.folder) return { ok: false, reason: 'no-folder' };
+    const machine = row.machine ? (this.remote.target(row.machine)?.machine ?? row.machine) : null;
+    if (machine && !MACHINE.test(machine)) return { ok: false, reason: 'remote', detail: 'unknown-machine' };
+    if (!machine && !isDir(row.folder)) return { ok: false, reason: 'no-folder' };
+    const key = folderTerminalKey(machine ?? '', row.folder);
+    if (this.manager.snapshot(key).state === 'running') return { ok: true, key };
+    const a = admit({ ...await (this.o.machine ?? machineProbe)(machine ? os.homedir() : row.folder, this.manager.runningCount()), freeDisk: null });
+    if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
+    const spec = machine
+      ? { argv: ['/usr/bin/ssh', '-t', '-o', 'ConnectTimeout=5', machine, `cd ${shellQuote(row.folder)} && exec "\${SHELL:-/bin/sh}" -l`], cwd: os.homedir(), label: 'ssh' }
+      : { argv: loginShellArgv(), cwd: row.folder, label: 'shell' };
+    const r = this.manager.start(key, spec, size);
+    if (!r.ok) return { ok: false, reason: 'spawn', detail: r.error };
+    if (machine) { this.terminalOf.set(key, machine); this.terminalFolderOf.set(key, row.folder); }
+    this.originOf.set(key, 'here');
+    this.o.log(`console: session terminal${machine ? ` on ${machine}` : ''} opened in ${key}`);
+    this.o.changed?.();
+    return { ok: true, key };
+  }
+
+  /** FD-354 (SCN-080 step 6): Open session: the end of the session's own transcript, as messages a person reads. The
+   *  path is the one Switchboard's launch record names; it is read here and only the messages reach the page. */
+  async readSessionTranscript(id: string): Promise<TranscriptAnswer> {
+    const row = this.rowOf(id);
+    if (!row) return { ok: false, reason: 'unknown' };
+    const file = transcriptFile(row.launch?.transcript);
+    if (!file) return { ok: false, reason: 'no-transcript' };
+    try {
+      const { text, partial } = await readTail(file, TRANSCRIPT_TAIL_BYTES);
+      return { ok: true, ...parseTranscript(text, { partial }) };
+    } catch (error) {
+      return { ok: false, reason: 'spawn', detail: (error as Error).message.slice(0, 200) };
+    }
+  }
+  // #endregion session-open
+
   /** FD-211: a console that only shows a hosted session; quitting or closing it leaves the session running. */
   isView(key: string): boolean {
     return this.attachedOf.has(key);
@@ -2191,6 +2237,8 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.sessionsEnd, (_e, id) => (idOk(id) ? this.endSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsReveal, (_e, id) => (idOk(id) ? this.revealSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsRevealTranscript, (_e, id) => (idOk(id) ? this.revealTranscript(id) : notARow()));
+    ipcMain.handle(CHANNELS.sessionsTerminal, (_e, id, s) => (idOk(id) ? this.openSessionTerminal(id, size(s ?? { cols: 120, rows: 32 })) : notARow()));
+    ipcMain.handle(CHANNELS.sessionsTranscript, (_e, id) => (idOk(id) ? this.readSessionTranscript(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsHandovers, () => this.readHandoversSwitch());
     ipcMain.handle(CHANNELS.sessionsHandoversSet, (_e, on) => (typeof on === 'boolean' ? this.setHandoversSwitch(on) : Promise.reject(new Error('not a switch value'))));
     ipcMain.handle(CHANNELS.fallback, () => this.readFallback());
@@ -2218,6 +2266,24 @@ function providerOf(agent: string | null | undefined): 'claude' | 'codex' | null
 export function transcriptFile(p: string | null | undefined): string | null {
   if (!p || !path.isAbsolute(p) || path.extname(p).toLowerCase() !== '.jsonl') return null;
   try { return fs.statSync(p).isFile() ? p : null; } catch { return null; }
+}
+
+/** FD-354: the last `max` bytes of a file as text, and whether the read began past its start. */
+async function readTail(file: string, max: number): Promise<{ text: string; partial: boolean }> {
+  const fh = await fs.promises.open(file, 'r');
+  try {
+    const { size } = await fh.stat();
+    const start = Math.max(0, size - max);
+    const buf = Buffer.alloc(size - start);
+    await fh.read(buf, 0, buf.length, start);
+    return { text: buf.toString('utf8'), partial: start > 0 };
+  } finally { await fh.close(); }
+}
+
+/** FD-354: a login shell for Open session terminal: the person's own shell on macOS and Linux, PowerShell on Windows. */
+export function loginShellArgv(platform: NodeJS.Platform = process.platform, shell = process.env.SHELL): string[] {
+  if (platform === 'win32') return ['powershell.exe', '-NoLogo'];
+  return [shell && path.isAbsolute(shell) ? shell : platform === 'darwin' ? '/bin/zsh' : '/bin/sh', '-l'];
 }
 
 function isDir(p: string): boolean {

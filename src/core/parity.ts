@@ -84,6 +84,8 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   sessionsEnd: { tool: 'session_action' },
   sessionsReveal: { window: 'reveals a folder in Finder' },
   sessionsRevealTranscript: { window: 'reveals a transcript in Finder' },
+  sessionsTerminal: { tool: 'session_action' },
+  sessionsTranscript: { gap: 'FD-354: an agent reads a session\'s messages from its transcript file; no MCP answer carries them yet' },
   sessionsHandovers: { other: 'Switchboard MCP switchboard_handovers' },
   sessionsCloseCopy: { other: 'Switchboard MCP switchboard_session_close_copy' },
   sessionsHandoversSet: { other: 'Switchboard MCP switchboard_handovers_set' },

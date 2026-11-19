@@ -9,6 +9,7 @@ import type { LoadEntry } from './load';
 import type { AccessView } from './access-view';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
 import type { SessionActionResult, SessionNotice } from './sessions';
+import type { TranscriptAnswer } from './transcript';
 
 /** A job a console is opened to do (FD-39 D-3): fix what is wrong, or update; `output` is a failed command's. */
 /** `audit` (FD-81): `output` carries the auditor's findings for this agent, as the person read them. */
@@ -260,6 +261,10 @@ export interface FabricApi {
   sessionsReveal(id: string): Promise<SessionActionResult>;
   /** FD-124: shows the session's transcript in Finder, the path Switchboard's launch record names; the page never sees it. */
   sessionsRevealTranscript(id: string): Promise<SessionActionResult>;
+  /** FD-354: Open session terminal: a login shell in the row's folder (over ssh on another machine), in a console of its own. */
+  sessionsTerminal(id: string, size?: { cols: number; rows: number }): Promise<SessionActionResult>;
+  /** FD-354: Open session: the end of the session's own transcript as messages; the file's path never reaches the page. */
+  sessionsTranscript(id: string): Promise<TranscriptAnswer>;
   /** Switchboard's own switch for handing sessions over to this app (`handovers set on|off`), read and written through its CLI. */
   sessionsHandovers(): Promise<{ available: boolean; enabled: boolean | null; old?: boolean }>;
   setSessionsHandovers(on: boolean): Promise<{ ok: boolean; enabled: boolean | null; detail?: string }>;
@@ -368,6 +373,8 @@ export const CHANNELS = {
   sessionsEnd: 'fd:sessions-end',
   sessionsReveal: 'fd:sessions-reveal',
   sessionsRevealTranscript: 'fd:sessions-reveal-transcript',
+  sessionsTerminal: 'fd:sessions-terminal',
+  sessionsTranscript: 'fd:sessions-transcript',
   sessionsHandovers: 'fd:sessions-handovers',
   sessionsHandoversSet: 'fd:sessions-handovers-set',
   fallback: 'fd:fallback',

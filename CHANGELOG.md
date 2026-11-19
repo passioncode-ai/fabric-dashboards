@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.219 - 2026-11-19
+
+### Added
+- FD-354: a session's page has a row of ways to open it under its header. Open session reads the session's own
+  conversation here (what you asked, what the agent answered, the tools it ran), from the end of its transcript. Open
+  session terminal opens a login shell in the session's folder in a console of its own, over ssh when the session runs
+  on another machine. New session opens the New session dialog with the same machine and folder chosen. Show in Finder
+  moved to this row. Agents open the same terminal through MCP `session_action` (`terminal`).
+
 ## 0.8.218 - 2026-11-19
 
 ### Added
