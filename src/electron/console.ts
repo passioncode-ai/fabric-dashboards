@@ -11,10 +11,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execRunner, portOf, type Runner } from '@passioncode-ai/fabric-service-host';
-import { accessOf, accessProbeArgv, cloneArgv, cloneOffer, folderOf as remoteFolderOf, folderProbeArgv, readLaunchJobs, remoteArgv, remoteFolderCandidates, remoteRuntimeArgv, routeTo, type LaunchJob, type RemoteAccess, type SshRoute } from '../core/remote-console';
+import { accessOf, accessProbeArgv, briefPathOf, briefWriteArgv, cloneArgv, cloneOffer, folderOf as remoteFolderOf, folderProbeArgv, readLaunchJobs, remoteArgv, remoteFolderCandidates, remoteRuntimeArgv, routeTo, type LaunchJob, type RemoteAccess, type SshRoute } from '../core/remote-console';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask, type NewSessionOptions, type NewSessionResult } from '../core/api';
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
-import { prepareHandoff, writeTaskOnly, type McpCommand, packDir } from '../core/handoff';
+import { HANDOFF_RUNTIMES, prepareHandoff, remoteBrief, remoteHandoffArgs, writeTaskOnly, type McpCommand, packDir } from '../core/handoff';
 import { readFallback, writeFallback, type FallbackChange, type FallbackRead } from '../core/fallback';
 import { prepareSetup, SETUP_KEY, setupFolder, setupSignals, writeSetupRequest, type SetupState } from '../core/setup';
 import type { DoctorReport } from '../core/doctor';
@@ -590,6 +590,26 @@ export class ConsoleHost {
     if (found === 'none') return { refused: 'no-folder' };
     return { path: found };
   }
+
+  /** FD-334 (P3): writes the brief of a session on another machine there, and the arguments that point the runtime at it. */
+  private async remoteBriefOf(key: string, runtime: Runtime, route: SshRoute, folder: string, task?: ConsoleTask): Promise<{ handoff: { before: string[]; after: string[] } | null; held: string | null }> {
+    const snap = this.o.snapshot(key);
+    if (!snap || !HANDOFF_RUNTIMES[runtime.id]) return { handoff: null, held: null };
+    let b: ReturnType<typeof remoteBrief>;
+    try { b = remoteBrief({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder, runtimeId: runtime.id, machine: route.destination, task }); } catch (error) {
+      this.o.log(`console: ${key} starts on ${route.destination} without its brief, ${promptsWords(runtime.id)}: ${(error as Error).message}`);
+      return { handoff: null, held: 'brief-failed' };
+    }
+    const [cmd, ...args] = briefWriteArgv({ route, key, text: b.text });
+    let file: string | null = null;
+    try { file = briefPathOf(await this.run(cmd!, args, 20_000)); } catch { file = null; }
+    if (!file) {
+      this.o.log(`console: ${key} starts on ${route.destination} without its brief, ${promptsWords(runtime.id)}: it could not be written there`);
+      return { handoff: null, held: 'brief-failed' };
+    }
+    this.o.log(`console: ${key} brief written on ${route.destination}${task ? ` with its ${task.kind} task` : ''}${b.signals.length ? `; it reads like instructions (${b.signals.join(', ')}), so ${promptsWords(runtime.id)}` : ''}`);
+    return { handoff: remoteHandoffArgs(runtime.id, file, b.task), held: b.signals.length ? b.signals.join(', ') : null };
+  }
   // #endregion remote-console-host
 
   private handoverInfo(key: string): ConsoleInfo['handover'] {
@@ -696,7 +716,7 @@ export class ConsoleHost {
       if (a.why === 'pool') return { ok: false, reason: 'admission', why: 'pool', used: a.used, cap: a.cap }; // FD-261
       return { ok: false, reason: 'admission', why: 'swap' };
     }
-    // FD-199: on the other machine, plain: its own coding agent and sign-in; the context pack is a file of this machine.
+    // FD-199: on the other machine, its own coding agent and sign-in; FD-334: the context and task as a brief written there.
     const saved = this.o.settings.get().consoles[key];
     if (remote?.route) {
       // FD-200: only a key that opens a shell there edits; one that only forwards views and uses the agent.
@@ -707,7 +727,11 @@ export class ConsoleHost {
       // FD-318 (S2-02): a held conversation continues with permission prompts there too, as it does here.
       const heldThere = mode === 'continue' && Boolean(saved?.held);
       if (heldThere) this.o.log(`console: ${key} continues on ${remote.route.destination} ${promptsWords(runtime.id)}: its conversation was held at ${saved!.held}`);
-      const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: heldThere ? false : saved?.bypass });
+      // FD-334 (P3): the context and the task travel as text written on that machine; a brief that reads like instructions,
+      // or one that could not be written, keeps permission prompts on, as a pack does here.
+      const brief = await this.remoteBriefOf(key, runtime, remote.route, there.path, task);
+      const heldBrief = Boolean(brief.held) && saved?.bypass !== false;
+      const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: brief.handoff ?? undefined, bypass: heldThere || heldBrief ? false : saved?.bypass });
       if (local.kind !== 'run') return local.kind === 'refused' ? { ok: false, reason: local.reason, detail: local.detail } : { ok: false, reason: 'spawn' };
       // FD-328 (Switchboard's request `51c3dcca`): that machine's Switchboard starts the coding agent there, so its folder's
       // group signs it in; the bare runtime over ssh only where Switchboard here does not know that machine.
@@ -720,7 +744,10 @@ export class ConsoleHost {
       if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
       this.handoverOf.delete(key);
       if (mode === 'continue') this.forgetLatestEnded(key);
-      this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : saved?.folder ?? null, idle: null, ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}) } } });
+      // FD-334: a brief that reads like instructions holds the conversation there too, as a pack does here (FD-236).
+      const readLike = Boolean(brief.held) && brief.held !== 'brief-failed';
+      this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : saved?.folder ?? null, idle: null, ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}),
+        ...(readLike ? { held: saved?.held ?? new Date().toISOString() } : mode === 'new' && !brief.held ? { held: null } : {}) } } });
       this.remoteRuns.set(key, there.path);
       this.o.log(`console: ${key} started ${runtime.id} (${mode}) on ${remote.route.destination} in ${there.path}, ${machine ? `through Switchboard on ${machine}` : `through ${remote.route.via}`}`);
       return { ok: true };

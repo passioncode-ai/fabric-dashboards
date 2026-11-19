@@ -118,6 +118,40 @@ export function remoteArgv(o: { ssh?: string; route: SshRoute; folder: string; h
   return [o.ssh ?? '/usr/bin/ssh', '-t', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=30', ...o.route.options, o.route.destination, remoteScript(o)];
 }
 
+// #region remote-brief-write — docs: docs/ux/scenarios.md#scn-103-edit-an-agent-on-the-machine-it-runs-on
+// FD-334 (P3): the brief of a session on another machine is written there before the start, in a folder of this app
+// under that machine's home (0700, the file 0600), one file per agent, rewritten at each start. The text travels inside
+// the ssh command as a quoted here-document whose end line it cannot contain; a text above BRIEF_MAX is cut.
+export const BRIEF_MARK = 'fabric-brief:';
+export const BRIEF_MAX = 96 * 1024;
+
+/** The argv that writes `text` to `~/.fabric-dashboards/consoles/<key>/brief.md` on the other machine and prints its path. */
+export function briefWriteArgv(o: { route: SshRoute; key: string; text: string; ssh?: string; end?: string }): string[] {
+  if (!SERVICE_KEY.test(o.key)) throw new Error(`not an agent key: ${o.key}`);
+  let text = o.text.length > BRIEF_MAX ? `${o.text.slice(0, BRIEF_MAX)}\n\n(cut: the rest was longer than the session's brief may be)\n` : o.text;
+  if (!text.endsWith('\n')) text += '\n';
+  let end = o.end ?? `FABRIC_BRIEF_${Math.random().toString(16).slice(2, 10)}`;
+  while (text.split('\n').includes(end)) end += '_';
+  const script = [
+    'umask 077',
+    `d="$HOME/.fabric-dashboards/consoles/${o.key}"`,
+    'mkdir -p "$d" || exit 70',
+    `cat > "$d/brief.md" <<'${end}' || exit 71`,
+    `${text}${end}`,
+    `printf '${BRIEF_MARK}%s\\n' "$d/brief.md"`,
+  ].join('\n');
+  return [o.ssh ?? '/usr/bin/ssh', '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', ...o.route.options, o.route.destination, `exec /bin/sh -c ${shellQuote(script)}`];
+}
+
+/** The path the write printed, or null when it failed. */
+export function briefPathOf(r: { code: number | null; stdout: string }): string | null {
+  if (r.code !== 0) return null;
+  const line = r.stdout.split('\n').find((l) => l.startsWith(BRIEF_MARK));
+  const file = line?.slice(BRIEF_MARK.length).trim();
+  return file && file.startsWith('/') && file.endsWith('/brief.md') ? file : null;
+}
+// #endregion remote-brief-write
+
 // #region remote-access — docs: docs/ux/scenarios.md#scn-103-edit-an-agent-on-the-machine-it-runs-on
 // FD-200: editing on the other machine needs a shell there. Whoever holds only a forward (a key restricted to port
 // forwarding, or a forced command) can view the agent and use it through its port, never edit it. Asked once before a
