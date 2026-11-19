@@ -26,3 +26,9 @@ P2:test/bugs.test.ts:7397c538c7f507f1
 P3:test/sessions-filter.test.ts:da4de8c7a5751230
 # P3 in test/mcp-log.test.ts (FD-347, 2026-11-19): the made-up home /Users/x exercising mcpLogFile.
 P3:test/mcp-log.test.ts:da4de8c7a5751230
+# P2 (FD-348, 2026-11-19): the support mailbox in these files is the organization's public support mailbox, named by Fabric (board e9de22da) for every app's Settings; not a person's address.
+P2:docs/backlog.md:30606a00aa42ed19
+P2:docs/ux/scenarios.md:30606a00aa42ed19
+P2:src/core/help.ts:30606a00aa42ed19
+P2:src/core/i18n.ts:30606a00aa42ed19
+P2:test/parity.test.ts:30606a00aa42ed19

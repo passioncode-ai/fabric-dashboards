@@ -154,6 +154,16 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         )}
       </section>
 
+      {/* FD-348 (SCN-024 step 5): support and the privacy policy, each a fixed address opened by the main process. */}
+      <section className="group" aria-labelledby="g-help">
+        <h2 id="g-help">{t('settings.help')}</h2>
+        <div className="row wrap">
+          <button className="btn" aria-describedby="help-support-body" onClick={() => void api().openHelp('support')}>{t('settings.help.support')}</button>
+          <button className="btn" onClick={() => void api().openHelp('privacy')}>{t('settings.help.privacy')}</button>
+        </div>
+        <p className="meta" id="help-support-body">{t('settings.help.supportBody')}</p>
+      </section>
+
       <BugsSection />
 
       {/* #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision */}
@@ -293,6 +303,7 @@ const SECTIONS = [
   { id: 'g-fallback', label: 'fallback.title' },
   { id: 'g-updates', label: 'settings.updates' },
   { id: 'g-privacy', label: 'settings.privacy' },
+  { id: 'g-help', label: 'settings.help' },
   { id: 'g-bugs', label: 'settings.bugs' },
   { id: 'g-estate', label: 'settings.estate' },
   { id: 'g-orgs', label: 'settings.orgs' },
