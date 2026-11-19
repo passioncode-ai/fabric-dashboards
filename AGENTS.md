@@ -53,7 +53,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.8.213 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.8.214 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -250,7 +250,7 @@ and its last good copy `settings.json.bak` (a damaged `settings.json` is restore
 `auto-update` (the LC-16 switch: written only when the person turns it, kept by every uninstall), `.last-version` (the version that ran last, to log a finished install), `restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
 marker of an automatic update install), `.resume-route.json` (written by Restart to update: the screen the next copy opens on, read and removed at its start, FD-21 U-18), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
 `notified.json`, `outage-alerts.json` (FD-48: open outage episodes and each service's start baseline; FD-285: `health`, each product's last report and its episodes, read by MCP `agent_health`), `console-output/` (FD-124: what each ended console session printed, one file per session named by a hash of its row id, 0700 folder and 0600 files, read back at start while its row is listed and removed with it or after 24 hours), `pending-update/` (Windows, FD-37 M4c: the verified installer until it runs; removed at every start), the Chromium profile and one `Partitions/svc-<key>` per service ever opened;
-`~/Library/Logs/Fabric Dashboards/main.log` (0600, 5 × 5 MB). At start it removes temporary files
+`~/Library/Logs/Fabric Dashboards/main.log` (0600, 5 × 5 MB), and beside it `mcp.log` (FD-347: each MCP server's start, hand-over, failed hand-over and why it left with its exit code, one line each with both process ids, written by the MCP servers; 0600, past 512 KB moved to `mcp.log.1`). At start it removes temporary files
 left by a killed writer and the partitions of services that are no longer installed; a service
 removed while it runs takes its view and its stored session with it.
 
