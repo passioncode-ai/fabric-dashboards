@@ -28,6 +28,10 @@ FD-331's live readback for studio-agent's Worker 0.3.0; Change on an online agen
   0.3.0), Change on an online agent (FD-194), FD-322 (not before 2026-11-25), FD-285 wave 2 (CT-337), FD-247 (a
   Switchboard `--target` for close-copy), FD-323 (CT-344, DEC by 2026-11-24). Next task: read the board, take what a
   partner delivered, by priority.
+- Later: 0.8.210 published (run 44466430666, 16 assets): FD-344, the auditor's FAC-SEM-142 port takes contract DEC-0184
+  AO-1 (a button naming a compact surface's door has no twin, said why; service-host 0.11.3; contract told `449776ea`).
+  FD-189 decided with the organizations service (`ef9783f2`). FD-331's live readback also needs a host invitation: the organization's showcase
+  token on this Mac is not a host token, and the showcase answers 401 to any path without one.
 
 ## 0.8.207: `<domain>.execute` doors; the e2e suite green again (2026-11-19)
 
