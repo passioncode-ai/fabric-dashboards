@@ -176,7 +176,9 @@ test('FD-37 packages.yml: every system and architecture on its native runner, si
   assert.doesNotMatch(nsis, /now\.every\(\(pid\) => !before\.includes\(pid\)\)/, 'never ids alone');
   assert.ok(wf.includes('!release/*.blockmap'), 'electron-updater\'s blockmap is not ours to publish');
   const smoke = fs.readFileSync(path.join(root, 'scripts/deb-smoke.sh'), 'utf8');
-  for (const step of ['apt-get install -y -qq "$deb" xvfb xauth', 'app=/opt/fabric-dashboards', "grep 'not found'", 'useradd -m smoke', 'initialize', 'xvfb-run -a /usr/bin/fabric-dashboards', 'started $version', 'apt-get remove -y -qq fabric-dashboards']) assert.ok(smoke.includes(step), step);
+  for (const step of ['apt-get "${apt_opts[@]}" install -y -qq "$deb" xvfb xauth', 'app=/opt/fabric-dashboards', "grep 'not found'", 'useradd -m smoke', 'initialize', 'xvfb-run -a /usr/bin/fabric-dashboards', 'started $version', 'apt-get remove -y -qq fabric-dashboards']) assert.ok(smoke.includes(step), step);
+  // Release 0.8.214: an unreachable Ubuntu archive fails the smoke in bounded time instead of holding the release.
+  for (const guard of ['Acquire::Retries=5', 'Acquire::http::Timeout=30', 'timeout 600 apt-get', 'timeout 900 apt-get', 'azure.archive.ubuntu.com']) assert.ok(smoke.includes(guard), guard);
   // Third-party actions by commit; the organization's own at @v1, as release.yml uses them (PL-10).
   for (const m of wf.matchAll(/uses: ([^\s]+)/g)) {
     if (m[1]!.startsWith('passioncode-ai/.github/')) assert.match(m[1]!, /@v1$/);

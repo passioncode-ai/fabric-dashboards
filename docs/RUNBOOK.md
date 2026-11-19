@@ -125,7 +125,9 @@ published or attached to a release.
      `/S` uninstall removes it (`scripts/nsis-smoke.mjs`; about four minutes on arm64).
    - Each `.deb` is installed in a clean `ubuntu:24.04` (`scripts/deb-smoke.sh`). As an ordinary user,
      not root, its MCP server answers and the app starts under Xvfb and logs `started <version>`; then
-     `apt remove` takes it away.
+     `apt remove` takes it away. Its apt uses the runner's Azure mirror when it answers and gives up after
+     bounded retries (10 and 15 minutes at most), so an unreachable Ubuntu archive fails the step instead of
+     holding the release until the job's timeout; rerun the failed jobs then.
 
    Rehearse from any branch without a tag; a rehearsal never signs:
    `gh workflow run validate.yml --ref <branch> -f os=all -f packages=true`.
