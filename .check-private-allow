@@ -24,3 +24,5 @@ P3:test/bugs.test.ts:5fc9a87882d22557
 P2:test/bugs.test.ts:7397c538c7f507f1
 # P3 in test/sessions-filter.test.ts (FD-335, 2026-11-19): the made-up home /Users/x exercising pathParts.
 P3:test/sessions-filter.test.ts:da4de8c7a5751230
+# P3 in test/mcp-log.test.ts (FD-347, 2026-11-19): the made-up home /Users/x exercising mcpLogFile.
+P3:test/mcp-log.test.ts:da4de8c7a5751230

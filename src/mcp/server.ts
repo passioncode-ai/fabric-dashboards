@@ -15,6 +15,7 @@ import { execRunner } from '../core/launchd';
 import { ACTIONS_META, actionOf, decisionFor, decisionsFile, decisionUsed, recordDecision } from './actions';
 import { launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX, REHAND_WINDOW_MS, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
+import { appendMcpLog } from './mcp-log';
 import * as tools from './tools';
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -283,6 +284,8 @@ function liveStaleWatch(from = __filename): StaleWatch {
 export interface ServeOptions {
   /** Default: process.exit. Tests pass their own. */
   exit?: (code: number) => void;
+  /** FD-347: where each event of the session is kept; default `mcp.log` beside `main.log` (none in a test run). */
+  log?: ((line: string) => void) | null;
   watch?: StaleWatch | null;
   /** Exit on SIGTERM / SIGINT (default true for the real process). */
   signals?: boolean;
@@ -308,6 +311,10 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
   const watch = options.watch === undefined ? liveStaleWatch() : options.watch;
   const handover = options.handover === undefined ? liveHandover(__filename) : options.handover;
   const rehand = options.rehand ?? process.env[REHAND_ENV] === '1';
+  // FD-347: each event also goes to mcp.log (not from a test run, which sets NODE_TEST_CONTEXT, unless it asks).
+  const keep = options.log === undefined ? (process.env.NODE_TEST_CONTEXT ? null : appendMcpLog) : options.log;
+  const note = (text: string) => { process.stderr.write(`${text}\n`); keep?.(text); };
+  keep?.(`fabric-dashboards-mcp ${watch?.runningVersion ?? appVersion()}: started${rehand ? ' (a fresh copy for a session handed over before)' : ''}`);
   const rehands: number[] = []; // FD-150: when each fresh copy was started after the first hand-over
   let init: unknown = null; // the client's own initialize params, repeated to the server that takes the session
   let relay: Relay | null = null;
@@ -319,7 +326,9 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
     if (leaving) return;
     leaving = true;
     clearInterval(timer);
-    process.stderr.write(`fabric-dashboards-mcp ${watch?.runningVersion ?? appVersion()}: leaving (${why})\n`);
+    const said = `fabric-dashboards-mcp ${watch?.runningVersion ?? appVersion()}: leaving (${why})`;
+    process.stderr.write(`${said}\n`);
+    keep?.(`${said}, exit ${code}`);
     // Up to 300 ms for calls already answering (an answer written just before EOF still lands), then
     // every owned group gets SIGTERM and SIGKILL 300 ms later. The exit is never later than 900 ms.
     const deadline = setTimeout(() => exit(code), 900);
@@ -349,7 +358,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
     try { child = handover(); } catch { child = null; }
     if (!child) return false;
     clearInterval(timer);
-    process.stderr.write(`fabric-dashboards-mcp ${s.running}: handing the session to the installed ${s.installed ?? 'copy'}\n`);
+    note(`fabric-dashboards-mcp ${s.running}: handing the session to the installed ${s.installed ?? 'copy'}`);
     const answerStale = (lines: string[]) => {
       for (const q of lines) {
         let m: Message | null = null;
@@ -360,13 +369,13 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
     relay = startRelay({
       child, init, output,
       failed: (why, queued) => {
-        process.stderr.write(`fabric-dashboards-mcp ${s.running}: hand-over failed (${why})\n`);
+        note(`fabric-dashboards-mcp ${s.running}: hand-over failed (${why})`);
         answerStale(queued);
         relay = null;
         leaving = false;
         leave(`stale, and the hand-over failed: ${why}`);
       },
-      done: (code) => { void killOwned(300).finally(() => exit(code)); },
+      done: (code) => { keep?.(`fabric-dashboards-mcp ${s.running}: the relay is over, exit ${code}`); void killOwned(300).finally(() => exit(code)); },
       // #region mcp-rehand — docs: AGENTS.md#lifecycle
       // FD-150: the copy behind the relay went stale (another update): start the copy installed now, from this process,
       // and send it the calls the old one left unanswered. A copy that keeps going stale at once ends the session.

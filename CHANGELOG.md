@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.214 - 2026-11-19
+
+### Added
+- FD-347: each MCP server of this app keeps a line in `mcp.log`, beside `main.log`, when it starts, hands a session to
+  a newer copy, fails to, or leaves, with the reason and its exit code. A coding agent's session that reads
+  "disconnected" can now be explained afterwards.
+
 ## 0.8.213 - 2026-11-19
 
 ### Fixed
