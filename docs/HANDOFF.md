@@ -16,8 +16,18 @@ the live readback). 0.8.209 (FD-335 done): the launch screens walked on the buil
 end, is fixed in New session, a session's page, the session list and the console header (`PathText`). Lesson recorded:
 a rate limit added in code broke a burst e2e outside the gate (`mem:a95e054242094750`). Waits: FD-337 for SB-479;
 FD-331's live readback for studio-agent's Worker 0.3.0; Change on an online agent for FD-194; FD-322 not before
-2026-11-25. Next task: FD-338's rest (a view's reload after its agent restarts, the warm-view grace, a page's session
-across an update) on the built app, with the screen unlocked and load under 40.
+2026-11-25. Next task was FD-338's rest; done later the same morning, with more:
+
+- Published: 0.8.209 (run 44460504522, 16 assets). 0.8.208 published (run 44456657774, 16 assets).
+- FD-338 done: `test/e2e/views-lifecycle.test.ts` walks an agent restart, the hidden-window graces and a new run of
+  the app on the built app (`FD_TEST_VIEW_RELEASE_MS`, unpackaged only). Lesson `mem:66035ea740c543c0`: a test's
+  `webRequest` listener replaces the app's own on that session.
+- FD-242 done: a real Claude Code console on the installed 0.8.208 ran 11 processes; none alive 5 s after End.
+- FD-02: SCN-100 validated; SCN-043 (a signed reinstall) is left for a spare install at a release.
+- Every other open row waits on another product: FD-337 (SB-479), FD-331's live readback (studio-agent's Worker
+  0.3.0), Change on an online agent (FD-194), FD-322 (not before 2026-11-25), FD-285 wave 2 (CT-337), FD-247 (a
+  Switchboard `--target` for close-copy), FD-323 (CT-344, DEC by 2026-11-24). Next task: read the board, take what a
+  partner delivered, by priority.
 
 ## 0.8.207: `<domain>.execute` doors; the e2e suite green again (2026-11-19)
 
