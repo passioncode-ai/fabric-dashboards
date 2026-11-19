@@ -22,6 +22,9 @@ export const REGISTER_TIMEOUT_MS = 15_000;
 export const SHOWCASE_EXTENSION = 'studio-agent:showcase';
 /** At most this many agent addresses are registered from one link (a real showcase names a handful). */
 export const REGISTER_MAX_HOSTS = 50;
+/** FD-331 (studio-agent STU-148): the showcase's list of the agent addresses it serves, with each one's repository. */
+export const SHOWCASE_HOSTS_SCHEMA = 'showcase-hosts/1';
+const REPOSITORY = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
 
 export type RegisterLink = { origin: string; invite: string };
 
@@ -73,8 +76,8 @@ export type RegisterDeps = {
   servicesDir: string;
   /** The computer's name, sent as the device's label. */
   label: string;
-  /** Who wrote the descriptors, as `installedBy` says it. */
-  installedBy: string;
+  /** Who wrote the descriptors, as `installedBy` says it (DEC-0061: `{ by, tool }`, or the older installer's name). */
+  installedBy: string | { by: 'organization'; tool: string };
   now: () => Date;
   /** Keeps the device key's private half sealed by the app (macOS Keychain); false when it cannot. */
   keepKey: (host: string, pem: string) => boolean;
@@ -106,8 +109,36 @@ async function wellKnown(deps: RegisterDeps, origin: string, token: string): Pro
   }
 }
 
-/** One online descriptor for an address, from its own well-known; null with why when it is not a usable one. */
-export function descriptorFor(origin: string, known: Record<string, unknown>, tokenFile: string, installedBy: string, at: Date): { key: string; descriptor: Record<string, unknown> } | { why: string } {
+export type ShowcaseHost = { origin: string; id: string; instance: string; repository: string | null };
+
+/** FD-331: the `hosts` of a `showcase-hosts/1` answer, or of the enroll answer beside the host token; [] for anything else. */
+export function showcaseHostsOf(body: unknown): ShowcaseHost[] {
+  if (!isObj(body) || !Array.isArray(body.hosts)) return [];
+  if (body.schema !== undefined && body.schema !== SHOWCASE_HOSTS_SCHEMA) return [];
+  const out: ShowcaseHost[] = [];
+  for (const h of body.hosts.slice(0, REGISTER_MAX_HOSTS)) {
+    if (!isObj(h) || typeof h.origin !== 'string' || !isObj(h.service)) continue;
+    const { id, instance } = h.service;
+    if (typeof id !== 'string' || typeof instance !== 'string') continue;
+    const repository = typeof h.repository === 'string' && REPOSITORY.test(h.repository) ? h.repository : null;
+    out.push({ origin: h.origin.toLowerCase().replace(/\/$/, ''), id, instance, repository });
+  }
+  return out;
+}
+
+/** FD-331: `GET <showcase>/api/hosts` with the host token; [] when the showcase does not answer it (an older Worker). */
+async function hostList(deps: RegisterDeps, origin: string, token: string): Promise<ShowcaseHost[]> {
+  try {
+    const res = await call(deps, `${origin}/api/hosts`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+    return res.ok ? showcaseHostsOf(await res.json()) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** One online descriptor for an address, from its own well-known; null with why when it is not a usable one. FD-331: the
+ *  repository the showcase names for that address and that service becomes `source.repository` (a GitHub URL). */
+export function descriptorFor(origin: string, known: Record<string, unknown>, tokenFile: string, installedBy: RegisterDeps['installedBy'], at: Date, listed: ShowcaseHost[] = []): { key: string; descriptor: Record<string, unknown> } | { why: string } {
   const service = isObj(known.service) ? known.service : null;
   if (!service) return { why: `${hostOf(origin)}'s well-known names no service` };
   const name = typeof service.name === 'string' ? service.name.trim().slice(0, 80) : '';
@@ -123,6 +154,8 @@ export function descriptorFor(origin: string, known: Record<string, unknown>, to
     installedAt: at.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     installedBy,
   };
+  const entry = listed.find((h) => h.origin === origin && h.id === service.id && h.instance === service.instance);
+  if (entry?.repository) Object.assign(descriptor, { source: { repository: `https://github.com/${entry.repository}` } });
   const problems = validateDescriptor(descriptor);
   if (problems.length) return { why: `${hostOf(origin)}: ${problems[0]}` };
   return { key: `${descriptor.id as string}.${descriptor.instance as string}`, descriptor };
@@ -161,8 +194,10 @@ export async function register(link: RegisterLink, deps: RegisterDeps): Promise<
   const written: string[] = [];
   const skipped: { key: string; why: string }[] = [];
   const at = deps.now();
+  // FD-331: the enroll answer names the hosts beside the token (STU-148); a showcase that does not is asked once.
+  const listed = showcaseHostsOf(answer).length ? showcaseHostsOf(answer) : await hostList(deps, link.origin, token);
   const write = (origin: string, known: Record<string, unknown>) => {
-    const made = descriptorFor(origin, known, tokenFile, deps.installedBy, at);
+    const made = descriptorFor(origin, known, tokenFile, deps.installedBy, at, listed);
     if ('why' in made) { skipped.push({ key: hostOf(origin), why: made.why }); return; }
     const file = path.join(deps.servicesDir, `${made.key}.json`);
     try {

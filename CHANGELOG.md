@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.208 - 2026-11-19
+
+### Added
+- FD-331: an agent added from an organization's invitation link names its repository when the organization's list of
+  agents names it, so its name, organization and Rename work as for an agent installed on this Mac. The record says
+  the organization's list installed it.
+
 ## 0.8.207 - 2026-11-19
 
 ### Fixed

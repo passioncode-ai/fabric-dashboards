@@ -34,7 +34,8 @@ export async function registerFromLink(o: RegisterFlowDeps, link: RegisterLink):
       fetch: o.fetch,
       servicesDir: servicesDir(),
       label: os.hostname().slice(0, 80),
-      installedBy: `Fabric Dashboards ${app.getVersion()} (registration link from ${host})`,
+      // FD-331 (DEC-0061): the organization's listing decided what is installed; the tool names this app and the showcase.
+      installedBy: { by: 'organization', tool: `Fabric Dashboards ${app.getVersion()} (registration link from ${host})` },
       now: () => new Date(),
       keepKey: (h, pem) => {
         if (!safeStorage.isEncryptionAvailable()) return false;

@@ -8,7 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { readDirectory } from '@passioncode-ai/fabric-service-host';
 import { parseDeepLink } from '../src/core/deeplink';
-import { connectLinkOf, agentHostAllowed, parseRegisterLink, register, type RegisterDeps } from '../src/core/register';
+import { connectLinkOf, agentHostAllowed, parseRegisterLink, register, type RegisterDeps, showcaseHostsOf } from '../src/core/register';
 import { parseRequest } from '../src/core/console-channel';
 
 const INVITE = 'A'.repeat(32);
@@ -137,4 +137,55 @@ test('FD-331: a pasted invitation is the whole register link; anything else says
   assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'agent.connect', link: 'fabric-dashboards://register?origin=https://a.example.com&invite=x' })).ok, true);
   assert.equal(parseRequest(JSON.stringify({ key: 'k', op: 'agent.connect' })).ok, false);
   assert.equal(parseRequest(JSON.stringify({ key: 'k', op: 'agent.connect', link: 'x', service: 'a.b' })).ok, false);
+});
+
+test('FD-331 (STU-148): the repository the showcase lists for an address becomes source.repository; installedBy names the organization', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-331-'));
+  const authed = (init: RequestInit) => (init.headers as Record<string, string>).Authorization === `Bearer ${TOKEN}`;
+  const hosts = [
+    { origin: 'https://sc-pm.example.com', service: { id: 'studio-showcase', instance: 'pm-agent' }, repository: 'acme/pm-agent' },
+    { origin: 'https://agents.example.com', service: { id: 'studio-showcase', instance: 'other' }, repository: 'acme/wrong' },
+  ];
+  const routes = (enrollHosts: boolean, list: () => Response) => server({
+    'https://agents.example.com/auth/enroll': () => json(200, { device: 'dev_1234567890', hostToken: TOKEN, ...(enrollHosts ? { hosts } : {}) }),
+    'https://agents.example.com/api/hosts': (i) => authed(i) ? list() : json(401, {}),
+    'https://agents.example.com/.well-known/fabric-service': (i) => authed(i) ? json(200, known('acme', 'Showcase', { 'pm-agent': 'sc-pm.example.com' })) : json(401, {}),
+    'https://sc-pm.example.com/.well-known/fabric-service': (i) => authed(i) ? json(200, known('pm-agent', 'PM agent')) : json(401, {}),
+  });
+  const org = { by: 'organization' as const, tool: 'Fabric Dashboards 0.0.0 (registration link from agents.example.com)' };
+  const run = async (f: typeof fetch) => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    const r = await register({ origin: 'https://agents.example.com', invite: INVITE }, { ...deps(dir, f), installedBy: org });
+    assert.ok(r.ok, JSON.stringify(r));
+    return Object.fromEntries(readDirectory(dir).map((e) => [e.key, e]));
+  };
+
+  const fromEnroll = routes(true, () => json(500, {}));
+  let read = await run(fromEnroll.fetchFake);
+  assert.equal(read['studio-showcase.pm-agent']!.descriptor!.source?.repository, 'https://github.com/acme/pm-agent');
+  assert.equal(read['studio-showcase.acme']!.descriptor!.source, undefined, 'a listed host whose service differs names no repository');
+  assert.deepEqual(read['studio-showcase.pm-agent']!.problems, [], 'the DEC-0061 object form passes the descriptor check');
+  assert.deepEqual(read['studio-showcase.pm-agent']!.descriptor!.installedBy, org);
+  assert.ok(!fromEnroll.calls.some((c) => c.url.endsWith('/api/hosts')), 'hosts in the enroll answer need no second call');
+
+  const fromList = routes(false, () => json(200, { schema: 'showcase-hosts/1', showcase: 'https://agents.example.com', hosts }));
+  read = await run(fromList.fetchFake);
+  assert.equal(read['studio-showcase.pm-agent']!.descriptor!.source?.repository, 'https://github.com/acme/pm-agent');
+  assert.ok(fromList.calls.some((c) => c.url === 'https://agents.example.com/api/hosts'), 'an enroll answer without hosts asks /api/hosts with the token');
+
+  read = await run(routes(false, () => json(404, {})).fetchFake);
+  assert.deepEqual(Object.keys(read).sort(), ['studio-showcase.acme', 'studio-showcase.pm-agent'], 'a showcase without /api/hosts still registers');
+  assert.equal(read['studio-showcase.pm-agent']!.descriptor!.source, undefined);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('FD-331: only a showcase-hosts/1 list with owner/name repositories is read', () => {
+  const host = (repository: unknown) => ({ origin: 'https://sc-a.example.com/', service: { id: 'a', instance: 'b' }, repository });
+  assert.deepEqual(showcaseHostsOf({ schema: 'showcase-hosts/1', hosts: [host('acme/a')] }), [{ origin: 'https://sc-a.example.com', id: 'a', instance: 'b', repository: 'acme/a' }]);
+  assert.equal(showcaseHostsOf({ hosts: [host('https://evil.example/x')] })[0]!.repository, null, 'only owner/name');
+  assert.equal(showcaseHostsOf({ hosts: [host('../../etc')] })[0]!.repository, null);
+  assert.equal(showcaseHostsOf({ hosts: [host(null)] })[0]!.repository, null);
+  assert.deepEqual(showcaseHostsOf({ schema: 'showcase-hosts/2', hosts: [host('acme/a')] }), [], 'another schema is not guessed');
+  assert.deepEqual(showcaseHostsOf({ hosts: [{ origin: 'https://x.example.com' }] }), [], 'no service, no entry');
+  assert.deepEqual(showcaseHostsOf(null), []);
 });

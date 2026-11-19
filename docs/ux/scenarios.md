@@ -2733,6 +2733,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   0. FD-331: the person presses Connect an agent on Overview and pastes the invitation link the organization sent -> the app checks it is a `fabric-dashboards://register?origin=…&invite=…` link (anything else says «Not connected: paste the invitation link…»), then the steps below run as for a clicked link; an agent does the same with MCP `agent_connect`
   1. The person opens the link -> the app comes forward and asks "Add the agents of <host> to this computer?" with what the link does and that they add them only if they expected it; Add agents and Cancel
   2. The person chooses Add agents -> the app redeems the invitation for a token of this computer, keeps the token beside the descriptors and writes one agent for the showcase and one for each agent address the showcase names for this person
+  2a. FD-331 (studio-agent STU-148): each agent's record names its repository when the showcase lists one for that address and that agent (`showcase-hosts/1`, beside the token or at `/api/hosts`), so its name, organization and Rename work as for an agent installed on this Mac; the record says the organization's listing installed it (DEC-0061); a showcase that lists nothing registers the agents as before, without a repository
   3. The registration ends -> "Agents added from <host>: N" (and "Not added: M. The log says why." when some address was refused), then the overview, where the agents appear at the next scan and open signed in like any online agent
 - **Expected result:** a member sees exactly the agents their grant names, without Tailscale and without setting up a descriptor or a token by hand
 - **Alt paths:** Cancel -> nothing is written and the invitation stays unused; the showcase names an address outside its own domain -> that address is skipped and never sent the token; an agent with the same name is installed for another address -> it is kept, that one is skipped; a second link while one registers -> logged only
@@ -2745,6 +2746,6 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Add agents" / «Добавить агентов»
   - "Agents added from {host}: {count}" / «Добавлено агентов с {host}: {count}»
   - "The agents of {host} were not added" / «Агенты {host} не добавлены»
-- **Status:** implemented (2026-11-18, 0.8.195: `test/register.test.ts` *FD-193*; copy check reports `8eb34470` to `d0686b68`, 22 strings, and `c1df4c52`, `849f59a2` for the title as worded now, no findings)
+- **Status:** implemented (2026-11-18, 0.8.195: `test/register.test.ts` *FD-193*; step 2a 2026-11-19, 0.8.208: *FD-331 (STU-148)*; copy check reports `8eb34470` to `d0686b68`, 22 strings, and `c1df4c52`, `849f59a2` for the title as worded now, no findings)
 - **Coverage:** src/core/register.ts, src/core/deeplink.ts (register), src/electron/register-flow.ts, src/electron/main.ts (handleLink)
 - **Product:** unobserved
