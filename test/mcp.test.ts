@@ -1276,3 +1276,54 @@ test('FD-324: spend_limit_set tightens as the caller\'s act, refuses a raise wit
   assert.ok(!(raised!.result as { isError?: boolean }).isError, JSON.stringify(raised));
   assert.deepEqual(got[1]!.meta, { decision: { by: 'operator', via: 'relayed-instruction', action: 'spend.limits.set', instruction: decision.instruction, at } }, 'the operator\'s words go on, without this app\'s target');
 });
+
+// FD-351 (contract DEC-0187): `access` asks each product for its access-grants/1 list and answers who holds what.
+test('FD-351: access reads a product\'s grants through its MCP and gives one agent its holds and what opens it', { skip: process.platform === 'win32' && 'the token goes to a loopback port only after the owner check, which needs the signed helper on Windows' }, async (t) => {
+  const asked: Record<string, unknown>[] = [];
+  const agent = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      if (req.method === 'DELETE') { res.writeHead(204); res.end(); return; }
+      const msg = JSON.parse(body) as { id?: number; method: string; params?: { name: string; arguments: Record<string, unknown> } };
+      const json = (result: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result })); };
+      if (msg.method === 'initialize') return json({ protocolVersion: '2025-03-26' });
+      if (!msg.id) { res.writeHead(202); res.end(); return; }
+      if (msg.method === 'tools/list') return json({ tools: [{ name: 'access.grants.list' }] });
+      asked.push(msg.params!.arguments);
+      return json({ structuredContent: {
+        protocol: 'access-grants/1', issuer: KEY, generatedAt: '2026-11-19T12:00:00Z', doors: { issue: 'keys.issue', revoke: 'keys.revoke' },
+        grants: [
+          { id: 'k1', holder: { kind: 'agent', agent: 'other-agent.default' }, scopes: ['check'], limitUsd: 25, limitPeriod: 'day', spentDayUsd: 3.5, issued: { at: '2026-11-18T09:00:00Z', by: 'operator', via: 'dashboard' } },
+          { id: 'k2', holder: { kind: 'unresolved', label: 'old bot' }, scopes: ['check'], issued: { at: '2026-11-01T09:00:00Z', by: 'operator', via: 'config' }, revoked: { at: '2026-11-10T09:00:00Z', by: 'operator', via: 'dashboard', reason: 'not used' } },
+        ],
+      } });
+    });
+  });
+  await new Promise<void>((r) => agent.listen(0, '127.0.0.1', r));
+  t.after(() => agent.close());
+  const origin = `http://127.0.0.1:${(agent.address() as { port: number }).port}`;
+  const doc = { ...WELL_KNOWN, surfaces: { ...WELL_KNOWN.surfaces, mcp: { transport: 'streamable-http', path: '/mcp', capabilities: ['access.grants.list'] } } } as unknown as WellKnown;
+  const { deps } = world({ descriptor: { origin }, answers: [{ kind: 'answer', doc, ms: 3 }] });
+  const call = (args: Record<string, unknown>) => handle(deps, { id: 1, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'access', arguments: args } } });
+  const all = (await call({}))!.result as { isError?: boolean; structuredContent: { products: Record<string, unknown>[]; agent?: unknown } };
+  assert.ok(!all.isError, JSON.stringify(all));
+  assert.deepEqual(all.structuredContent.products, [{ key: KEY, product: 'example-agent', state: 'read', grants: 2, active: 1, doors: { issue: 'keys.issue', revoke: 'keys.revoke' } }]);
+  assert.equal(all.structuredContent.agent, undefined);
+  assert.deepEqual(asked[0], { includeRevoked: true });
+  const one = (await call({ service: KEY }))!.result as { structuredContent: { agent: { key: string; holds: unknown[]; grantedTo: { id: string; state: string; spentDayUsd?: number }[] } } };
+  assert.equal(one.structuredContent.agent.key, KEY);
+  assert.deepEqual(one.structuredContent.agent.holds, []);
+  assert.deepEqual(one.structuredContent.agent.grantedTo.map((g) => [g.id, g.state]), [['k1', 'active'], ['k2', 'revoked']], 'its own grants open it; a revoked one says so');
+  assert.equal(one.structuredContent.agent.grantedTo[0].spentDayUsd, 3.5);
+});
+
+test('FD-351: a product without the list reads as not declared, one that does not answer as unreadable', async () => {
+  const { deps } = world({ answers: [{ kind: 'answer', doc: WELL_KNOWN, ms: 3 }] });
+  const r = (await handle(deps, { id: 1, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'access', arguments: {} } } }))!.result as { structuredContent: { products: { state: string }[] } };
+  assert.deepEqual(r.structuredContent.products.map((p) => p.state), ['not-declared']);
+  const down = world({ answers: [{ kind: 'no-answer', detail: 'connect ECONNREFUSED' }] });
+  const d = (await handle(down.deps, { id: 1, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'access', arguments: {} } } }))!.result as { structuredContent: { products: { state: string; why?: string }[] } };
+  assert.equal(d.structuredContent.products[0].state, 'unreadable');
+  assert.match(d.structuredContent.products[0].why ?? '', /does not answer now/);
+});

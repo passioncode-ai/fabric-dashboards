@@ -29,6 +29,8 @@ import { displayName } from '../core/names';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchLoad, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readLoad, type LoadEntry } from '../core/load';
+import { accessOf, readGrants, type GrantsRead } from '../core/access-read';
+import { grantState, type Grant } from '@passioncode-ai/fabric-service-host';
 import { readSpend, spendingWithoutEmergency, type SpendEntry } from '../core/spend';
 import { applyLimitChange, LimitEditError, SPEND_LIMITS_SET, type LimitChangeInput, type RelayedDecision } from '../core/limit-edit';
 import { arrangeProducts, categoryOf, groupProducts, moveInSection, productIdOf, setKind, setOff, showAgain, togglePin, type Category, type Product } from '../core/products';
@@ -850,6 +852,44 @@ export async function load(deps: Deps, key: string): Promise<LoadEntry & { produ
   return { ...entry, product: productIdOf(one.key) };
 }
 // #endregion load-mcp
+
+// #region access-mcp — docs: docs/ux/scenarios.md#scn-123-see-who-holds-access-and-what-each-agent-holds
+/** One grant as an agent reads it: its state now beside what the product said (AG-5). */
+function grantOut(issuer: string, g: Grant, now: number) {
+  return { issuer, id: g.id, state: grantState(g, now), holder: g.holder, ...(g.subject ? { subject: g.subject } : {}), scopes: g.scopes,
+    ...(g.limitUsd !== undefined ? { limitUsd: g.limitUsd } : {}), ...(g.limitPeriod ? { limitPeriod: g.limitPeriod } : {}),
+    ...(g.spentDayUsd !== undefined ? { spentDayUsd: g.spentDayUsd } : {}), issued: g.issued,
+    ...(g.expiresAt ? { expiresAt: g.expiresAt } : {}), ...(g.revoked ? { revoked: g.revoked } : {}) };
+}
+
+/** FD-351 (contract DEC-0187): who holds access to each product, and, with `service`, what that agent holds and what
+ *  opens it. Every product that issues access is asked (`access.grants.list`); one that does not declare the operation is
+ *  `not-declared`, one that does not answer `unreadable`, never "holds nothing". */
+export async function access(deps: Deps, key: string | undefined, clientVersion: string) {
+  const me = key ? find(deps, key).key : undefined;
+  const looks = await look(deps);
+  const now = deps.now();
+  const reads: GrantsRead[] = await Promise.all(looks.filter((l) => l.descriptor).map((l) => {
+    if (!l.wellKnown && !['invalid', 'conflict'].includes(l.state)) {
+      const why = l.state === 'foreign' || l.state === 'foreign-user' ? 'another program answers on its address' : `it does not answer now (${l.state})`;
+      return Promise.resolve<GrantsRead>({ key: l.key, state: 'unreadable', why });
+    }
+    return readGrants({ key: l.key, look: l, readToken: deps.token, version: clientVersion });
+  }));
+  const products = reads.map((r) => {
+    const base = { key: r.key, product: productIdOf(r.key), state: r.state };
+    if (r.state !== 'read') return 'why' in r ? { ...base, why: r.why } : base;
+    const active = r.answer.grants.filter((g) => grantState(g, now) === 'active').length;
+    return { ...base, grants: r.answer.grants.length, active, ...(r.answer.doors ? { doors: r.answer.doors } : {}), ...(r.answer.degraded ? { degraded: r.answer.degraded } : {}) };
+  });
+  if (!me) return { products };
+  const mine = accessOf(me, reads);
+  return {
+    products,
+    agent: { key: me, holds: mine.holds.map((h) => grantOut(h.issuer, h.grant, now)), grantedTo: mine.grantedTo.map((h) => grantOut(h.issuer, h.grant, now)) },
+  };
+}
+// #endregion access-mcp
 
 // #region console-channel-client — docs: docs/adr/0025-the-console-channel.md#decision
 /** One request to the running app, through its per-user channel and this run's key. The app not running is an answer

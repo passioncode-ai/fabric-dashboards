@@ -265,4 +265,14 @@ export const TOOLS = [
     },
     annotations: { readOnlyHint: true },
   },
+  {
+    name: 'access',
+    description: 'Who holds access to each product, from its own access-grants/1 list (contract DEC-0187): products with state read (grants, active, doors to issue and revoke), not-declared (it does not offer the list yet) or unreadable and refused with why, never "holds nothing". With service: that agent\'s holds (grants naming it as holder) and grantedTo (grants that open it), each with issuer, scopes, limit and its window, spent today, issued and revoked (by, via) and its state now (active, revoked, expired). No key value is read.',
+    inputSchema: {
+      type: 'object',
+      properties: { service: { ...serviceArg, description: 'One agent (id.instance): also list what it holds and what opens it' } },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+  },
 ] as const;

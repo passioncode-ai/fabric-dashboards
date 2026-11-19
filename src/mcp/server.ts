@@ -142,6 +142,7 @@ export async function call(deps: tools.Deps, name: string, args: Args, decision?
       ...(typeof args.limitUsd === 'number' ? { limitUsd: args.limitUsd } : {}), ...(typeof args.enforced === 'boolean' ? { enforced: args.enforced } : {}),
     }, decision ?? null, typeof args.idempotencyKey === 'string' ? args.idempotencyKey : undefined, SERVER.version);
     case 'load': return tools.load(deps, need(args, 'service'));
+    case 'access': return tools.access(deps, str(args, 'service') || undefined, SERVER.version);
     default: throw new tools.ToolError(`unknown tool ${JSON.stringify(name)}`);
   }
 }
