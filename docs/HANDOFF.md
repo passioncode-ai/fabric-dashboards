@@ -7,6 +7,19 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.207: `<domain>.execute` doors; the e2e suite green again (2026-11-19)
+
+Published: 0.8.207 (2026-11-19 03:30 UTC tag, run 44451879708, 16 assets): FD-343, Change on a spending limit reaches
+an agent whose execute door is `<domain>.execute` or the one its compact surface declares (contract DEC-0180 CM-1,
+DEC-0182 TD-5; agents base request `8d5e5b6e`, answered `dd1af1a5`; service-host 0.11.2). FD-325 done: the whole e2e
+suite ran on `8415b9c5` at load average 38, 36 pass, 1 skipped, 0 fail; one stale test fixed (three bad links at once
+against FD-318's 2 s dialog gap). studio-agent shipped STU-148 in code (`0b2f056`, board `68d59e1a`): `GET /api/hosts`
+lists only the hosts its Worker serves, not `*.sslip.io`; its Worker 0.3.0 is not deployed yet, so `/api/hosts` answers
+404 until then. Waits: FD-337 Open in Switchboard for SB-479; FD-331's deploy check for studio-agent's Worker 0.3.0;
+Change on an online agent for FD-194; FD-322 not before 2026-11-25. Next task: FD-331's rest by the STU-148 shape
+(`repository` into `source.repository`, the DEC-0061 `installedBy` object), then FD-335 (walk the launch UI on the
+built app at 1200 and 700 px).
+
 ## 0.8.206: Continue without a conversation, placed agents through a forward (2026-11-19)
 
 Published: 0.8.206 (2026-11-18 23:39 UTC, run 44417720288, 16 assets): FD-341 (Continue refuses `no-transcript` when a

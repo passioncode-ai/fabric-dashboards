@@ -361,8 +361,15 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
       }
       throw new Error(`fewer than ${n} refusals shown`);
     };
+    // FD-318 (S2-03): one refusal dialog at most every 2 s, so each bad link waits out the gap to get its own; a link
+    // inside the gap is logged only (src/core/ipc-guard.ts DialogGate, its unit test in test/ipc-guard.test.ts).
+    const gap = () => new Promise((r) => setTimeout(r, 2_200));
     forward('fabric-dashboards://service/nobody.default');
+    await refusals(1);
+    await gap();
     forward(`fabric-dashboards://service/sample.default?path=${encodeURIComponent('//evil.example/x')}`);
+    await refusals(2);
+    await gap();
     forward('fabric-dashboards://service/Sample.default');
     const shown = await refusals(3);
     assert.match(shown[0]!, /no installed service "nobody\.default"\. Nothing was opened\./);
