@@ -12,14 +12,14 @@ type Tool = (typeof TOOLS)[number];
 
 export const SEARCH_TOOL = {
   name: 'search',
-  description: 'Find this server\'s operations by words (empty: all), each with its purpose, inputSchema, effect (read, write or destructive), gate (none, or relayed: an act on another agent that takes the operator\'s words in params._meta.decision and an idempotencyKey) and an example; then run one with execute. Paged: pass next as cursor.',
+  description: 'Find this server\'s operations by words (empty: all), each with its purpose, inputSchema, effect, gate and an example; run one with execute. Paged: pass next as cursor.',
   inputSchema: { type: 'object', properties: { query: { type: 'string', maxLength: 200 }, cursor: { type: 'string', maxLength: 8 }, limit: { type: 'integer', minimum: 1, maximum: 50 } }, additionalProperties: false },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
 } as const;
 
 export const EXECUTE_TOOL = {
   name: 'execute',
-  description: 'Run one operation search names, with its arguments, through the same checks as the window\'s button. A relayed operation takes an idempotencyKey: the same key with the same arguments answers the first result and does nothing again; with other arguments it is refused. Refusals are typed: unknown-operation, invalid-arguments, idempotency-required, idempotency-conflict, and the decision refusals of the gate.',
+  description: 'Run one operation search names, with its arguments, through the same checks as the window\'s button. A relayed operation takes an idempotencyKey. Refusals are typed.',
   inputSchema: { type: 'object', properties: { operation: { type: 'string', maxLength: 64 }, arguments: { type: 'object' }, idempotencyKey: { type: 'string', maxLength: 128 } }, required: ['operation'], additionalProperties: false },
   annotations: { readOnlyHint: false, destructiveHint: true },
 } as const;
