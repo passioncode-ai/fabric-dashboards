@@ -81,6 +81,10 @@ export interface Settings {
   setupDone: boolean;
   /** FD-184: Check setup has run once by itself on this install (the setup card's first showing); never again on its own. */
   setupChecked: boolean;
+  /** FD-348: an agent's console session has ended on this install (the "aha" moment); written by the main process only. */
+  ratingDue: boolean;
+  /** FD-348: the one-time ask for a review was answered (Write a review or Not now); it never shows again. */
+  ratingAsked: boolean;
   /** FD-39 SCN-059: the previous visit — when, which agents it saw, which one was selected last. */
   lastVisitAt: string | null;
   knownServices: string[];
@@ -228,6 +232,8 @@ export const DEFAULT_SETTINGS: Settings = {
   moveToApplicationsAsked: false,
   setupDone: false,
   setupChecked: false,
+  ratingDue: false,
+  ratingAsked: false,
   lastVisitAt: null,
   knownServices: [],
   knownNames: {},

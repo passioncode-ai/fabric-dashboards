@@ -394,8 +394,8 @@ export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refuse
 
 export function rendererSettingsPatch(raw: unknown): SettingsPatch {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  // Scenario walk 2026-11-11 (SCN-093): `updateAnnounced` is the main process's own record, never the page's.
-  const { consoles: _consoles, sessions: _sessions, newSession: _newSession, updateAnnounced: _updateAnnounced, analyticsSetOn: _setOn, ...patch } = raw as SettingsPatch & Record<string, unknown>;
+  // Scenario walk 2026-11-11 (SCN-093): `updateAnnounced` is the main process's own record, never the page's; so is FD-348's `ratingDue`.
+  const { consoles: _consoles, sessions: _sessions, newSession: _newSession, updateAnnounced: _updateAnnounced, analyticsSetOn: _setOn, ratingDue: _ratingDue, ...patch } = raw as SettingsPatch & Record<string, unknown>;
   // DEC-0157 UD-2: the person's own switch: on sets it on for this product (ending an earlier no), off clears that.
   if (typeof patch.analytics === 'boolean') (patch as Record<string, unknown>).analyticsSetOn = patch.analytics;
   return patch as SettingsPatch;
@@ -422,6 +422,8 @@ export function merge(raw: Partial<Settings>): Settings {
     moveToApplicationsAsked: raw.moveToApplicationsAsked === true,
     setupDone: raw.setupDone === true,
     setupChecked: raw.setupChecked === true,
+    ratingDue: raw.ratingDue === true,
+    ratingAsked: raw.ratingAsked === true,
     lastVisitAt: typeof raw.lastVisitAt === 'string' && !Number.isNaN(Date.parse(raw.lastVisitAt)) ? raw.lastVisitAt : null,
     knownServices: Array.isArray(raw.knownServices) ? [...new Set(raw.knownServices.filter((k): k is string => typeof k === 'string' && SERVICE_KEY.test(k)))].slice(0, 500) : [],
     knownNames: knownNamesOf(raw.knownNames),

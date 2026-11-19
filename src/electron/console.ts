@@ -29,6 +29,7 @@ import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSe
 export { newSessionChoiceOf }; // FD-302: moved to src/core/new-session.ts; tests and the console channel import it here
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import { SERVICE_KEY, type SettingsStore } from '../core/settings';
+import { ratingDueAfter } from '../core/help';
 import { accountsOf, allSessionsOf, belowFloor, isOldSwitchboard, noAnswer, parseSwitchboardVersion, switchboardStamp, SWITCHBOARD_FLOOR, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
@@ -284,6 +285,8 @@ export class ConsoleHost {
       this.o.log(`console: ${e.key} exited with ${e.code}${e.signal ? ` (signal ${e.signal})` : ''}`);
       this.send({ key: e.key, kind: 'exit', code: e.code, signal: e.signal });
       this.recordEnd(e.key, e.code);
+      // FD-348: the first agent session that ends makes the one-time review ask due (scenario SCN-122).
+      if (ratingDueAfter(e.key, this.o.settings.get())) this.o.settings.update({ ratingDue: true });
       this.o.changed?.(); // FD-62: the shell's list shows it ended; FD-103: so does the Sessions list
     });
   }
