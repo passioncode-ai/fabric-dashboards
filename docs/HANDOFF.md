@@ -30,8 +30,12 @@ FD-331's live readback for studio-agent's Worker 0.3.0; Change on an online agen
   partner delivered, by priority.
 - Later: 0.8.210 published (run 44466430666, 16 assets): FD-344, the auditor's FAC-SEM-142 port takes contract DEC-0184
   AO-1 (a button naming a compact surface's door has no twin, said why; service-host 0.11.3; contract told `449776ea`).
-  FD-189 decided with the organizations service (`ef9783f2`). FD-331's live readback also needs a host invitation: the organization's showcase
-  token on this Mac is not a host token, and the showcase answers 401 to any path without one.
+  FD-189 decided with the organizations service (`ef9783f2`). FD-331 read back live after studio-agent's deploy (board `ba48205f`): `/api/hosts` answers
+  `showcase-hosts/1` to this Mac's showcase token (an earlier note here, that it was not a host token, was wrong: the
+  path answered 401 only before the deploy), and the reader takes it whole; the two hosts' `repository` is still null,
+  asked of studio-agent (`d3a33130`).
+- Later: 0.8.211 (FD-345): Check setup runs the launcher's doctor 0.2.80, which proves this app's two doors; the real
+  0.2.80 reads it ok on all four coding agents.
 
 ## 0.8.207: `<domain>.execute` doors; the e2e suite green again (2026-11-19)
 
