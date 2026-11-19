@@ -230,6 +230,10 @@ test('the protocol: initialize, tools/list, a call, a refusal as isError, notifi
 
   const list = await handle(deps, { jsonrpc: '2.0', id: 3, method: 'tools/list' });
   assert.deepEqual((list!.result as { tools: { name: string }[] }).tools.map((t) => t.name), ['search', 'execute'], 'FD-339: two doors');
+  // RO-801 (the agents base's compact-mcp check): each door's description stays under 200 characters; the rest is said once,
+  // in the instructions.
+  for (const t of (list!.result as { tools: { name: string; description: string }[] }).tools) assert.ok(t.description.length < 200, `${t.name}: ${t.description.length} characters`);
+  assert.match((init!.result as { instructions: string }).instructions, /idempotency-conflict/);
 
   const ok = await handle(deps, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: ex({ name: 'link', arguments: { service: KEY } }) });
   assert.equal((ok!.result as { structuredContent: { service: string } }).structuredContent.service, KEY);

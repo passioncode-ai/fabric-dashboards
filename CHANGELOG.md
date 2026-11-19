@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.212 - 2026-11-19
+
+### Changed
+- RO-801: the descriptions of the MCP doors `search` and `execute` are shorter, so an agent spends less of its context
+  on them. What they left out (the gate, the idempotency key and the refusal codes) is said once in the server's
+  instructions.
+
 ## 0.8.211 - 2026-11-19
 
 ### Fixed

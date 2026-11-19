@@ -4,7 +4,11 @@ import { ARRANGE } from './tools';
 
 export const INSTRUCTIONS = [
   'Two doors (FD-339): `search` finds this server\'s operations by words, each with its schema, gate and an example;',
-  '`execute` runs one by name with its arguments (an act on another agent also takes an idempotencyKey). The names below, and the tool each declared action names, are operations.',
+  '`execute` runs one by name with its arguments. An operation\'s effect is read, write or destructive; its gate is none, or relayed:',
+  'an act on another agent, which takes the operator\'s words in params._meta.decision and an idempotencyKey. The same key with the same',
+  'arguments answers the first result and does nothing again; with other arguments it is refused. Refusals are typed: unknown-operation,',
+  'invalid-arguments, idempotency-required, idempotency-conflict, and the gate\'s decision refusals (FD-339; RO-801: each door\'s',
+  'description stays under 200 characters). The names below, and the tool each declared action names, are operations.',
   'Fabric Dashboards watches the agent services of this Mac (fabric-service/0.1): local ones and',
   'online ones registered here (placement remote, an https origin supervised by its platform).',
   'Hand a person a link to what you started: `link` or `open` turn a service key (id.instance)',
