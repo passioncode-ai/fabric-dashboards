@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.213 - 2026-11-19
+
+### Fixed
+- FD-346: a coding-agent session that started before this app's MCP moved to two doors keeps working. Until
+  2026-12-03 a call by an old tool name runs again, with a line naming the `execute` call that replaces it; before, it
+  was refused, so such a session lost Fabric Dashboards until it restarted.
+
 ## 0.8.212 - 2026-11-19
 
 ### Changed
