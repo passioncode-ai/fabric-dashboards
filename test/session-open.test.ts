@@ -56,7 +56,7 @@ test('FD-354: a read that began mid-file drops its first line and says the start
 
 test('FD-354: a login shell is the person\'s own on macOS and Linux, PowerShell on Windows', () => {
   assert.deepEqual(loginShellArgv('darwin', '/bin/bash'), ['/bin/bash', '-l']);
-  assert.deepEqual(loginShellArgv('darwin', undefined), ['/bin/zsh', '-l']);
+  assert.deepEqual(loginShellArgv('darwin', ''), ['/bin/zsh', '-l'], 'no SHELL (an empty one; undefined would read this machine\'s own)');
   assert.deepEqual(loginShellArgv('linux', 'relative'), ['/bin/sh', '-l']);
   assert.deepEqual(loginShellArgv('win32', '/bin/bash'), ['powershell.exe', '-NoLogo']);
   assert.match(folderTerminalKey('', '/w/a'), /^session\.term-[0-9a-f]{12}$/);

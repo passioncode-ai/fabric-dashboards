@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.8.219 - 2026-11-19
+## 0.8.220 - 2026-11-19
+
+0.8.219 was not published: its release check failed on a test that read the CI runner's own `SHELL`; its changes ship here.
 
 ### Added
 - FD-354: a session's page has a row of ways to open it under its header. Open session reads the session's own
