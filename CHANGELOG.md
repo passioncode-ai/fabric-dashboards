@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.218 - 2026-11-19
+
+### Added
+- FD-351: an agent's page has an Access tab: what the agent holds (keys and grants other products issued to it) and who
+  holds access to it, read from each product's own list (`access.grants.list`, contract DEC-0187) over its MCP. The tab
+  shows once any installed product declares the list; a product without it reads "not declared". Agents get the same
+  through MCP `access`.
+
 ## 0.8.217 - 2026-11-19
 
 ### Fixed

@@ -6,6 +6,7 @@ import type { SetupCheckResult } from './doctor';
 import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
 import type { LoadEntry } from './load';
+import type { AccessView } from './access-view';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
 import type { SessionActionResult, SessionNotice } from './sessions';
 
@@ -150,6 +151,8 @@ export interface FabricApi {
   spendLimitSet(key: string, change: { limitId: string; limitUsd?: number; enforced?: boolean; reason: string }): Promise<SpendLimitSetResult>;
   /** FD-93: one agent's own load report, read now in the main process (DEC-0104); `readAt` is that read's time. */
   load(key: string): Promise<{ entry: LoadEntry; readAt: string }>;
+  /** FD-351 (DEC-0187): one agent's access, from every product's `access.grants.list`, read in the main process. */
+  access(key: string, force?: boolean): Promise<AccessView>;
   activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
   markActivitySeen(): Promise<void>;
   settings(): Promise<Settings>;
@@ -297,6 +300,7 @@ export const CHANNELS = {
   spend: 'fd:spend',
   spendLimitSet: 'fd:spend-limit-set',
   load: 'fd:load',
+  access: 'fd:access',
   activity: 'fd:activity',
   activitySeen: 'fd:activity-seen',
   settings: 'fd:settings',

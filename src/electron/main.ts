@@ -48,6 +48,7 @@ import { applyLimitChange, LimitEditError, planLimitChange, SPEND_LIMITS_SET } f
 import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { readLoad, type LoadEntry } from '../core/load';
+import { accessView, readGrants, type GrantsRead } from '../core/access-read';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { uninstall as runUninstall } from './uninstall-flow';
@@ -984,6 +985,24 @@ if (!app.requestSingleInstanceLock()) {
       return { entry: last.entry, readAt: new Date(last.at).toISOString() };
     });
     // #endregion load-ipc
+    // #region access-ipc — docs: docs/ux/scenarios.md#scn-123-see-who-holds-access-and-what-each-agent-holds
+    // FD-351 (DEC-0187): every product's access list, read once for every agent's tab (one read serves them all for
+    // 60 s, Refresh reads now); a hidden window gets the last read (LC-08), as Load does. No key value is read.
+    let lastAccess: { reads: GrantsRead[]; at: number } | null = null;
+    let accessRun: Promise<{ reads: GrantsRead[]; at: number }> | null = null;
+    const readAllGrants = () => (accessRun ??= (async () => {
+      const looks = monitor.snapshots().filter((x) => x.descriptor);
+      const reads = await Promise.all(looks.map((l): Promise<GrantsRead> => (!l.wellKnown && !['invalid', 'conflict'].includes(l.state)
+        ? Promise.resolve({ key: l.key, state: 'unreadable', why: `it does not answer now (${l.state})` })
+        : readGrants({ key: l.key, look: l, readToken: readTokenAsync, version: app.getVersion() }))));
+      return (lastAccess = { reads, at: Date.now() });
+    })().finally(() => { accessRun = null; }));
+    ipcMain.handle(CHANNELS.access, async (_e, key: string, force?: boolean) => {
+      const fresh = lastAccess && Date.now() - lastAccess.at < 60_000;
+      const read = (force === true || (windowVisible() && !fresh) || !lastAccess) ? await readAllGrants() : lastAccess;
+      return accessView(key, read.reads, Date.now(), new Date(read.at).toISOString());
+    });
+    // #endregion access-ipc
     ipcMain.handle(CHANNELS.activity, (_e, filter) => activity.list(filter ?? {}));
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
     ipcMain.handle(CHANNELS.settings, () => settings.get());

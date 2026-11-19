@@ -44,6 +44,10 @@
       "types": "./dist/instance-facts.d.ts",
       "default": "./dist/instance-facts.js"
     },
+    "./access-grants": {
+      "types": "./dist/access-grants.d.ts",
+      "default": "./dist/access-grants.js"
+    },
     "./load": {
       "types": "./dist/load.d.ts",
       "default": "./dist/load.js"

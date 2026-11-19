@@ -128,6 +128,7 @@
 | SCN-120 | See an agent's own health report on its Health tab | health | P-01 | ST-004 | implemented | 2026-11-17 |
 | SCN-121 | Register an organization's agents from a link | navigation | P-01 | ST-016 | implemented | 2026-11-18 |
 | SCN-122 | Asked once for a review after the first finished session | overview | P-01 | ST-010 | implemented | 2026-11-19 |
+| SCN-123 | See who holds access and what each agent holds | access | P-01 | ST-010 | draft | 2026-11-19 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2777,4 +2778,24 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "No thanks" / «Нет, спасибо»
 - **Status:** implemented (2026-11-19, 0.8.215: `test/parity.test.ts` *FD-348 (SCN-122)*; copy check reports `afdbabdf`, `84f72055`, `87d0cc10`, `eea66076` (en) and `a2cbb147`, `1fa1e918`, `e9e984c2`, `1fa105dc` (ru), no findings but a suggestion on the Latin product name in the Russian title)
 - **Coverage:** src/core/help.ts (helpUrl review, ratingDueAfter, showRatingAsk), src/electron/console.ts, src/renderer/components/RatingAsk.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts
+- **Product:** unobserved
+
+### SCN-123: See who holds access and what each agent holds
+- **Persona:** P-01
+- **Feature:** access
+- **Traces:** FD-351 (the operator, 2026-11-19, this repository's session: «проверка доступов и как делегировать доступ и смотреть кому он делегирован, где это видно по разным агентам»); contract DEC-0187 `access-grants/1` (AG-1 to AG-7, FAC-SEM-185); products asked on the board, thread `747c6bb0`
+- **Entry point:** an agent (MCP `access`, through `execute`); later the agent's Access tab and the Access page
+- **Preconditions:** products that issue access (agent access, account seats, client keys, provider keys) answer `access.grants.list`
+- **Steps:**
+  1. An agent calls `access` with no service -> every installed product is listed with its state: read (how many grants, how many active, the doors that issue and revoke), not-declared (it does not offer the list yet), unreadable or refused (with why)
+  2. The agent calls `access` with one agent's key -> beside the list, that agent's holds (grants naming it as holder, from any product) and grantedTo (grants that open it: its own, or naming it as subject), each with the issuer, scopes, the limit and its window, spent today, who issued and revoked it and how, and its state now (active, revoked, expired)
+  3. A holder a product could not name as an agent stays as the product wrote it (unresolved) and is never matched to an agent by its label
+- **Expected result:** who holds access to what, and who gave it, is read in one place for every product, and a product that does not say is never read as granting nothing
+- **Alt paths:** a product answers for another issuer, or breaks the shape -> refused whole with its reason; more than ten pages -> the first ten are read and the answer says the rest was not; a product with a compact surface that does not know the operation -> not-declared
+- **UI elements:** (planned) the Access tab on an agent's page, the Access page
+- **States covered:** success, empty, error, degraded
+- **Errors & recovery:** the product does not answer -> unreadable with its state; its token cannot be read -> unreadable, nothing is sent
+- **Copy:** (with the Access tab)
+- **Status:** draft (2026-11-19: built for agents, the reader and MCP `access`, `test/access-read.test.ts`, `packages/service-host/test/access-grants.test.ts`, `test/mcp.test.ts` *FD-351*; the Access tab and page wait for the first product to ship the list, the first by 2026-11-24)
+- **Coverage:** packages/service-host/src/access-grants.ts, src/core/access-read.ts, src/mcp/tools.ts (access), src/mcp/schema.ts
 - **Product:** unobserved

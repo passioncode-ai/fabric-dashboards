@@ -1,0 +1,80 @@
+{
+  "protocol": "access-grants/1",
+  "issuer": "media-studio.default",
+  "generatedAt": "2026-11-19T14:00:00Z",
+  "doors": {
+    "issue": "media.keys.issue",
+    "revoke": "access.grants.revoke"
+  },
+  "grants": [
+    {
+      "id": "key_7f3a91c2",
+      "holder": {
+        "kind": "agent",
+        "agent": "smm-manager.cloud"
+      },
+      "scopes": [
+        "media.generate",
+        "orders.read"
+      ],
+      "limitUsd": 25,
+      "limitPeriod": "day",
+      "spentDayUsd": 3.4,
+      "issued": {
+        "at": "2026-11-12T09:30:00Z",
+        "by": "operator",
+        "via": "agent",
+        "agent": "fabric-dashboards.default",
+        "ref": "decision-2026-11-12-01"
+      },
+      "expiresAt": "2027-02-12T09:30:00Z"
+    },
+    {
+      "id": "key_0b6e44d1",
+      "holder": {
+        "kind": "person",
+        "ref": "member-41",
+        "label": "Jane Doe"
+      },
+      "subject": {
+        "kind": "account",
+        "provider": "openrouter",
+        "ref": "acct-org-2"
+      },
+      "scopes": [],
+      "limitUsd": null,
+      "spentDayUsd": null,
+      "issued": {
+        "at": "2026-10-01T08:00:00Z",
+        "by": "person",
+        "via": "dashboard",
+        "ref": "member-7"
+      }
+    },
+    {
+      "id": "key_5c2d0aa8",
+      "holder": {
+        "kind": "unresolved",
+        "label": "smm-manager-agent cloud old"
+      },
+      "subject": {
+        "kind": "agent",
+        "agent": "text-desk.cloud"
+      },
+      "scopes": [
+        "texts.check"
+      ],
+      "issued": {
+        "at": "2026-09-20T12:00:00Z",
+        "by": "service",
+        "via": "config"
+      },
+      "revoked": {
+        "at": "2026-11-18T16:00:00Z",
+        "by": "service",
+        "via": "automatic",
+        "reason": "Found in a public log; reissued as key_7f3a91c2."
+      }
+    }
+  ]
+}
