@@ -8,12 +8,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright';
-import { tmp, waitFor } from '../helpers';
+import { shot, tmp, waitFor } from '../helpers';
 // FD-247 (6b): a wide window shows each group as a table and hides the cards; a session is whichever row is on screen.
 const SESSION = '.session-card:visible, .session-table tbody tr:visible';
 
 const ROOT = path.resolve(__dirname, '../..');
-const SHOTS = process.env.FD_SCREENSHOTS;
 const HO = 'ho-00000000c0de';
 
 async function closeApp(app: ElectronApplication | null): Promise<void> {
@@ -88,7 +87,7 @@ test('SCN-085, SCN-080: a hand-over is announced once, its notification opens it
     const drawer = await waitFor('the session page\'s console', async () => app!.windows().find((p) => p.url().includes('drawer=1')) ?? null) as Page;
     await drawer.locator('.console-page').waitFor({ timeout: 20_000 });
     await waitFor('the handed-over session\'s output', async () => /handed over session ready/.test(await drawer.locator('.console-term .xterm-rows').innerText().catch(() => '')) || null, 20_000);
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '31-session-page.png') });
+    await shot(app!, page, '31-session-page');
 
     // VIS-05 (SCN-080 step 4): Esc reaches the coding agent; a Tab right after it leaves the terminal for the window.
     await drawer.locator('.console-term').click();
@@ -155,7 +154,7 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     await endedCard.waitFor();
     await page.locator(SESSION, { hasText: 'running-repo' }).first().waitFor();
     await page.locator(SESSION, { hasText: 'stopped-repo' }).getByText(/No account in its group can take it|Waits for an account with capacity/).first().waitFor();
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '32-all-sessions.png') });
+    await shot(app!, page, '32-all-sessions');
     // FD-124 (SCN-080 step 6): the ended session's page folds its launch facts under "About this launch".
     await endedCard.getByRole('button', { name: 'ended-repo' }).click();
     await page.getByRole('heading', { level: 1, name: 'ended-repo' }).waitFor({ timeout: 20_000 });
@@ -164,7 +163,7 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     for (const fact of ['when another session reached its limit', 'nightly-agent', 'a hand-over', '7']) await chain.getByText(fact, { exact: true }).first().waitFor();
     await chain.getByRole('button', { name: "Show this session's transcript in the file manager" }).waitFor();
     assert.equal(await chain.getByText(transcript).count(), 0, 'the transcript path is never drawn');
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '33-session-launch-chain.png') });
+    await shot(app!, page, '33-session-launch-chain');
     await page.locator('nav .nav-item', { hasText: 'All sessions' }).first().click();
     await page.getByRole('heading', { level: 1, name: 'All sessions' }).waitFor();
     if (!(await endedCard.isVisible())) await page.getByRole('main').getByRole('button', { name: /Ended in the last 24 hours: 1/ }).click();

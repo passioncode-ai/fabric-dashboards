@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AllSessions } from '../src/renderer/components/Sessions';
+import { AllSessions, pathParts } from '../src/renderer/components/Sessions';
 import { initialMachine } from '../src/renderer/components/NewSessionDialog';
 import { SessionsNav } from '../src/renderer/components/Navigation';
 import { LangContext } from '../src/renderer/lib';
@@ -162,4 +162,12 @@ test('FD-247 step 6: All sessions draws each group as a table too (shown on a wi
   assert.match(html, /<th scope="row" title="docs-site">/);
   const css = fs.readFileSync(path.join(import.meta.dirname, '..', 'src/renderer/styles/app.css'), 'utf8');
   assert.match(css, /@container sessions \(min-width: 900px\) \{\s*\.session-table \{ display: table; \}\s*\.session-cards \{ display: none; \}/);
+});
+
+test('FD-335: a long path gives way at its start; its last folder stays whole', () => {
+  assert.deepEqual(pathParts('/Users/x/work/clients/acme/my-projects'), { head: '~/work/clients/acme', tail: '/my-projects' });
+  assert.deepEqual(pathParts('/var/folders/3r/x/T/fd-e2e-new-1/my-projects/'), { head: '/var/folders/3r/x/T/fd-e2e-new-1', tail: '/my-projects/' }, 'a trailing slash keeps the folder name');
+  assert.deepEqual(pathParts('C:\\Users\\ann\\work\\app'), { head: '~\\work', tail: '\\app' });
+  assert.deepEqual(pathParts('/'), { head: '', tail: '/' });
+  assert.deepEqual(pathParts('relative'), { head: '', tail: 'relative' });
 });

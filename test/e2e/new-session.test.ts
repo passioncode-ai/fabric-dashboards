@@ -7,12 +7,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { _electron as electron, type ElectronApplication } from 'playwright';
-import { tmp, waitFor } from '../helpers';
+import { shot, tmp, waitFor } from '../helpers';
 // FD-247 (6b): a wide window shows each group as a table and hides the cards; a session is whichever row is on screen.
 const SESSION = '.session-card:visible, .session-table tbody tr:visible';
 
 const ROOT = path.resolve(__dirname, '../..');
-const SHOTS = process.env.FD_SCREENSHOTS;
 
 async function closeApp(app: ElectronApplication | null): Promise<void> {
   if (!app) return;
@@ -43,7 +42,7 @@ test('SCN-101, SCN-102: New session starts the chosen coding agent in the chosen
     const agentDialog = page.getByRole('dialog', { name: 'New agent' });
     await agentDialog.getByText(/asks what the new agent should do/).waitFor({ timeout: 20_000 });
     await agentDialog.getByRole('button', { name: 'Create with coding agent' }).waitFor();
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '40-new-agent.png') });
+    await shot(app!, page, '40-new-agent');
     await agentDialog.getByRole('button', { name: 'Cancel' }).click();
     await agentDialog.waitFor({ state: 'detached' });
     // SCN-119 (FD-171): New dashboard on the agent list opens the dialog under its own title; Cancel closes it.
@@ -51,7 +50,7 @@ test('SCN-101, SCN-102: New session starts the chosen coding agent in the chosen
     const dashboardDialog = page.getByRole('dialog', { name: 'New dashboard' });
     await dashboardDialog.getByText(/asks what the page should show/).waitFor({ timeout: 20_000 });
     await dashboardDialog.getByRole('button', { name: 'Create with coding agent' }).waitFor();
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '41-new-dashboard.png') });
+    await shot(app!, page, '41-new-dashboard');
     await dashboardDialog.getByRole('button', { name: 'Cancel' }).click();
     await dashboardDialog.waitFor({ state: 'detached' });
     // SCN-101: New session in the Sessions mode.
@@ -66,7 +65,7 @@ test('SCN-101, SCN-102: New session starts the chosen coding agent in the chosen
     const isolated = dialog.getByRole('checkbox', { name: 'Isolated session' });
     assert.equal(await isolated.isDisabled(), true, 'no Switchboard here');
     await dialog.getByText('Needs Fabric Switchboard.').waitFor();
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '41-new-session.png') });
+    await shot(app!, page, '41-new-session');
     await dialog.getByRole('button', { name: 'Start session' }).click();
     await dialog.waitFor({ state: 'detached', timeout: 20_000 });
     // The session's page opens on it, and the coding agent runs in the folder without permission prompts.

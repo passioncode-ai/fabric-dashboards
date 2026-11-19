@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.209 - 2026-11-19
+
+### Fixed
+- FD-335: a long folder path keeps its last folder on screen. In the New session dialog, a session's page, the session
+  list and the console header the start of the path gives way instead of the folder's own name.
+
 ## 0.8.208 - 2026-11-19
 
 ### Added
