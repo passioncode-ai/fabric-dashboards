@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { Launchd, type RunResult } from '../src/core/launchd';
 import type { Descriptor, ServiceEvent, WellKnown, WellKnownResult } from '../src/core/types';
-import { handle, serve, TOOLS } from '../src/mcp/server';
+import { handle, OLD_NAMES_UNTIL, serve, TOOLS } from '../src/mcp/server';
 import type { StaleWatch } from '../src/mcp/stale';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
@@ -1155,8 +1155,20 @@ test('FD-339: an idempotency key answers its first result and refuses other argu
   assert.deepEqual(i.check('k1', 'control', { a: 2 }), { kind: 'conflict' });
 });
 
+test('FD-346: until OLD_NAMES_UNTIL an old tool name runs its operation, unlisted, and names the execute call', async () => {
+  const { deps } = world();
+  deps.now = () => Date.parse(OLD_NAMES_UNTIL) - 60_000;
+  const old = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  const r = old!.result as { isError?: boolean; content: { text: string }[] };
+  assert.ok(!r.isError, 'a session that cached the old list keeps working');
+  assert.match(r.content.at(-1)!.text, /list_services is an old name, answered until 2026-12-03: call execute with \{"operation": "list_services"/);
+  const list = await handle(deps, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
+  assert.deepEqual((list!.result as { tools: { name: string }[] }).tools.map((t) => t.name), ['search', 'execute'], 'still two doors in the list');
+});
+
 test('FD-339: an old tool name is refused retired-name with the execute call that runs it; an unknown name stays a protocol error', async () => {
   const { deps } = world();
+  deps.now = () => Date.parse(OLD_NAMES_UNTIL); // FD-346: after the window
   const old = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
   const r = old!.result as { isError: boolean; structuredContent: { code: string; message: string } };
   assert.equal(r.isError, true);

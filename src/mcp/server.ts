@@ -20,6 +20,9 @@ import * as tools from './tools';
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const SERVER = { name: 'fabric-dashboards', version: appVersion() };
 
+/** FD-346: until this time an old tool name still runs its operation (sessions started before the two doors). */
+export const OLD_NAMES_UNTIL = '2026-12-03T00:00:00Z';
+
 /** The app's version, from the package.json above this file — in the checkout or inside app.asar. */
 export function appVersion(from = __dirname): string {
   for (let dir = from; ; dir = path.dirname(dir)) {
@@ -249,9 +252,17 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
         }
         return callTool(operation, inner);
       }
-      // FD-339: the old tool names were retired in 0.8.203 after one release beside the two doors. A call by one is
-      // refused with the door that runs it, so a client that cached the old list learns the new way in one answer.
-      if (TOOLS.some((t) => t.name === name)) return refuse('retired-name', `${name} is now an operation: call execute with {"operation": ${JSON.stringify(name)}, "arguments": {...}}; search lists every operation`);
+      // FD-339: the old tool names were retired in 0.8.203 after one release beside the two doors. FD-346 (Fabric's
+      // finding `2594a8c1`): a coding-agent session that started before then keeps the old list until it restarts, so
+      // until OLD_NAMES_UNTIL an old name runs its operation again, as before the doors, unlisted, with a line naming the
+      // execute call; after it, the call is refused with that door, so a client learns the new way in one answer.
+      if (TOOLS.some((t) => t.name === name)) {
+        const how = `call execute with {"operation": ${JSON.stringify(name)}, "arguments": {...}}`;
+        if (deps.now() >= Date.parse(OLD_NAMES_UNTIL)) return refuse('retired-name', `${name} is now an operation: ${how}; search lists every operation`);
+        const ran = await callTool(name, args) as { result?: { content?: unknown[] } };
+        if (ran.result && Array.isArray(ran.result.content)) ran.result.content.push({ type: 'text', text: `${name} is an old name, answered until ${OLD_NAMES_UNTIL.slice(0, 10)}: ${how}.` });
+        return ran;
+      }
       return fail(-32602, `unknown tool ${JSON.stringify(name)}`);
     }
     default: return fail(-32601, `method not found: ${method}`);
