@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.216 - 2026-11-19
+
+### Fixed
+- FD-350: a coding agent's session no longer loses Fabric Dashboards' tools when an update installs while the machine is
+  busy. The MCP server keeps the session, answers "updating, call again in a few seconds", and hands it to the new
+  version once that starts; before, one failed hand-over ended the tools until the session was restarted.
+
 ## 0.8.215 - 2026-11-19
 
 ### Added

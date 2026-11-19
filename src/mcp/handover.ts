@@ -13,6 +13,10 @@ const MAC = /[\\/]Contents[\\/]Resources[\\/]app\.asar[\\/]/;
 const OTHER = /[\\/]resources[\\/]app\.asar[\\/]/i;
 export const HANDOVER_ID = 'fabric-dashboards-handover';
 export const HANDOVER_TIMEOUT_MS = 15_000;
+/** FD-350: a hand-over that fails (the new bundle not in place yet, or a copy too slow to answer on a loaded machine) is
+ *  tried again every HANDOVER_RETRY_MS for HANDOVER_WAIT_MS before the session is given up. */
+export const HANDOVER_RETRY_MS = 5_000;
+export const HANDOVER_WAIT_MS = 10 * 60_000;
 /** FD-133: set in the environment of a server another one started to take its session. Such a server never hands its
  *  session on: one hand-over per update, never a chain of servers starting each other. */
 export const HANDED_ENV = 'FABRIC_DASHBOARDS_MCP_HANDED';
