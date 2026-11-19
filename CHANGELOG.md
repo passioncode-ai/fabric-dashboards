@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.210 - 2026-11-19
+
+### Changed
+- FD-344: the Agent map says why a button whose agent twin is a two-door surface's search or execute tool has no twin:
+  the button has to name the operation behind those doors (contract DEC-0184).
+
 ## 0.8.209 - 2026-11-19
 
 ### Fixed

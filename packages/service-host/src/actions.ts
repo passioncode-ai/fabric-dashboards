@@ -79,6 +79,9 @@ export function actionsOf(wellKnown: unknown): ActionsView {
   const surfaces = isPlain(wellKnown) && isPlain(wellKnown.surfaces) ? wellKnown.surfaces : {};
   const mcp = isPlain(surfaces.mcp) ? surfaces.mcp : {};
   const capabilities = Array.isArray(mcp.capabilities) ? (mcp.capabilities as unknown[]) : undefined;
+  // DEC-0184 AO-1: on a compact surface a button's twin is the operation behind its doors, never a door itself.
+  const compact = isPlain(mcp.compact) ? mcp.compact : {};
+  const doors = new Set([compact.search, compact.execute].filter((name): name is string => typeof name === 'string'));
   const findings: ActionFinding[] = [];
   const seen = new Set<string>();
   actions.forEach((action, i) => {
@@ -86,7 +89,8 @@ export function actionsOf(wellKnown: unknown): ActionsView {
     if (seen.has(action.id)) findings.push(flag(`${at}/id`, `action ${action.id} is declared twice`));
     seen.add(action.id);
     if ((action.gate === 'human') !== (action.humanStep !== undefined)) findings.push(flag(`${at}/humanStep`, 'humanStep is present exactly when gate is human (DEC-0121 AP-4)'));
-    if (capabilities !== undefined && !capabilities.includes(action.tool)) findings.push(flag(`${at}/tool`, `the MCP surface does not serve ${action.tool}: a button without an agent twin (DEC-0121 AP-1)`));
+    if (doors.has(action.tool)) findings.push(flag(`${at}/tool`, `${action.tool} is the compact surface's search or execute tool, not a capability: tool names the operation the button runs, one of capabilities (DEC-0184 AO-1, DEC-0180 CM-6)`));
+    else if (capabilities !== undefined && !capabilities.includes(action.tool)) findings.push(flag(`${at}/tool`, `the MCP surface does not serve ${action.tool}: a button without an agent twin (DEC-0121 AP-1)`));
   });
   return { declared: true, reported: false, actions, errors: [], findings };
 }

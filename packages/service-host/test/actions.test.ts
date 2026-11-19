@@ -36,7 +36,7 @@ test('DEC-0121 (FAC-SEM-142): every vector of the contract\'s declarations finds
 
 test('DEC-0121 (FAC-SEM-142): the semantic well-known fixtures expect a finding exactly when the reader finds one', () => {
   const names = fs.readdirSync(FIXTURES).filter((f) => f.startsWith('semantic_service-well-known-actions-')).map((f) => f.slice(0, -5));
-  assert.equal(names.length, 7);
+  assert.equal(names.length, 9);
   for (const name of names) {
     const f = fixture(name) as { expect: string[]; input: unknown };
     const found = actionsOf(f.input).findings;
@@ -46,6 +46,13 @@ test('DEC-0121 (FAC-SEM-142): the semantic well-known fixtures expect a finding 
   const ok = actionsOf((fixture('semantic_service-well-known-actions-ok') as { input: unknown }).input);
   assert.equal(ok.declared, true);
   assert.ok(ok.actions.every((a) => ['none', 'relayed', 'human'].includes(a.gate)));
+});
+
+test('DEC-0184 (AO-1): a button names the operation behind a compact surface\'s doors, never the execute or search tool', () => {
+  const door = actionsOf((fixture('semantic_service-well-known-actions-compact-execute-door') as { input: unknown }).input);
+  assert.equal(door.findings.length, 1);
+  assert.match(door.findings[0]!.message, /is the compact surface's search or execute tool, not a capability/);
+  assert.deepEqual(actionsOf((fixture('semantic_service-well-known-actions-compact-operation') as { input: unknown }).input).findings, []);
 });
 
 test('FD-110: absent is not declared and not reported; anything not a document declares nothing', () => {
