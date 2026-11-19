@@ -73,4 +73,10 @@ export function accessView(key: string, reads: readonly GrantsRead[], now: numbe
 
 /** Whether any installed product declares the list: the Access tab shows from then on. */
 export const anyDeclares = (looks: readonly Look[]) => looks.some((l) => Boolean(l.descriptor) && grantsDoorOf(l)?.declared === true);
+
+/** Whether a product might answer the list behind its compact `execute` door, which says nothing until it is asked. */
+export const anyMayAnswer = (looks: readonly Look[]) => looks.some((l) => Boolean(l.descriptor) && grantsDoorOf(l) !== null);
+
+/** Whether a read found any product's list: a compact door that answered shows the tab as a declared one does. */
+export const anyRead = (view: Pick<AccessView, 'products'> | null) => Boolean(view?.products.some((p) => p.state === 'read'));
 // #endregion access-view

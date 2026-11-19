@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AccessGrants, Grant } from '@passioncode-ai/fabric-service-host';
-import { accessOf, accessView, anyDeclares, GRANT_PAGES, grantsDoorOf, readGrants, type GrantsRead } from '../src/core/access-read';
+import { accessOf, accessView, anyDeclares, anyMayAnswer, anyRead, GRANT_PAGES, grantsDoorOf, readGrants, type GrantsRead } from '../src/core/access-read';
 
 const ORIGIN = 'http://127.0.0.1:47123';
 const AT = '2026-11-19T10:00:00Z';
@@ -148,4 +148,12 @@ test('FD-351: the tab appears once any installed product declares the list, not 
   assert.equal(anyDeclares([look({ compact: { execute: 'writer.execute' } }), look(null)]), false);
   assert.equal(anyDeclares([look({ capabilities: ['access.grants.list'] })]), true);
   assert.equal(anyDeclares([{ descriptor: null, wellKnown: look({ capabilities: ['access.grants.list'] }).wellKnown }]), false, 'a service with no descriptor is not installed');
+});
+
+test('FD-351: a compact door may answer the list, so the page asks once; a read that found a list shows the tab', () => {
+  assert.equal(anyMayAnswer([look({ compact: { execute: 'media.execute' } })]), true);
+  assert.equal(anyMayAnswer([look({ capabilities: ['media.search'] }), look(null)]), false);
+  assert.equal(anyRead(null), false);
+  assert.equal(anyRead({ products: [{ key: 'media.default', state: 'not-declared' }, { key: 'writer.cloud', state: 'unreadable', why: 'down' }] }), false);
+  assert.equal(anyRead({ products: [{ key: 'media.default', state: 'read' }] }), true);
 });

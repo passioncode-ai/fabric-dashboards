@@ -17,7 +17,7 @@ import { Connections } from './Connections';
 import { HealthEntry } from './HealthReport';
 import { Load } from './Load';
 import { Access } from './Access';
-import { anyDeclares } from '../../core/access-view';
+import { anyDeclares, anyMayAnswer, anyRead } from '../../core/access-view';
 import { PaneBoundary } from './PaneBoundary';
 import { subscriptionCost, usd } from './Spend';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
@@ -151,7 +151,18 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   // FD-93: the Load tab is there when the agent declares its load, rightly or not (a wrong declaration is reported there).
   const load = loadOf(s.wellKnown);
   // FD-351: the Access tab is there once any installed product lists access (DEC-0187); before that it would say nothing.
-  const access = anyDeclares(all);
+  // A product behind a compact `execute` door says so only when asked (as the media service does), so one read, shared
+  // by every agent page for 60 s in the main process, decides then.
+  const declared = anyDeclares(all);
+  const mayAnswer = !declared && anyMayAnswer(all);
+  const [answered, setAnswered] = useState(false);
+  useEffect(() => {
+    if (!mayAnswer) return undefined;
+    let live = true;
+    api().access(s.key).then((v) => { if (live) setAnswered(anyRead(v)); }, () => undefined);
+    return () => { live = false; };
+  }, [s.key, mayAnswer]);
+  const access = declared || (mayAnswer && answered);
   const tabs = (['dashboard', 'activity', 'connections', ...(load.declared || load.reported ? ['load'] : []), ...(access ? ['access'] : []), 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
   // FD-93 review: a tab that leaves the list (Load, once the agent stops answering) never leaves an empty pane.
   useEffect(() => { if (!tabs.includes(tab)) setTabState(hasDashboard ? 'dashboard' : 'health'); }, [tabs.join(), tab, hasDashboard]);
