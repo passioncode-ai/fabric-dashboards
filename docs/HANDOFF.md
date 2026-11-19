@@ -1,11 +1,43 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-11-19 (0.8.215: start at *0.8.215* below; 0.8.198 the cost charts; 0.8.197 FD-310 step 2; 0.8.196 FD-310 step 1; 0.8.195 cancelled by 0.8.196's tag, its FD-193 ships in 0.8.196; 0.8.195 FD-193; 0.8.194 FD-320; 0.8.193 FD-319; 0.8.192 FD-318; 0.8.191 FD-315; 0.8.190 FD-317; 0.8.189 FD-316; 0.8.188 FD-314; 0.8.187 published; 0.8.186 the audits; 0.8.185 wave 7; 0.8.184 wave 6; 0.8.183 wave 5; 0.8.182 wave 4; 0.8.181 published; 0.8.181 wave 3; 0.8.180 wave 2; 0.8.179 wave 1; 0.8.178 published; 0.8.177 tagged; 0.8.176 tagged; 0.8.175 tagged; 0.8.174 tagged; 0.8.173 tagged; 0.8.172 tagged; 0.8.171 tagged; 0.8.170 tagged; 0.8.169 published; 0.8.168 tagged; 0.8.167 tagged; 0.8.166 tagged; 0.8.165 tagged; 0.8.164 tagged; 0.8.161 and 0.8.163 tagged, 0.8.162's run cancelled by 0.8.163's tag, its changes ship in 0.8.163). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-11-19 (0.8.217: start at *0.8.217* below; 0.8.215 Help and the review ask; 0.8.198 the cost charts; 0.8.197 FD-310 step 2; 0.8.196 FD-310 step 1; 0.8.195 cancelled by 0.8.196's tag, its FD-193 ships in 0.8.196; 0.8.195 FD-193; 0.8.194 FD-320; 0.8.193 FD-319; 0.8.192 FD-318; 0.8.191 FD-315; 0.8.190 FD-317; 0.8.189 FD-316; 0.8.188 FD-314; 0.8.187 published; 0.8.186 the audits; 0.8.185 wave 7; 0.8.184 wave 6; 0.8.183 wave 5; 0.8.182 wave 4; 0.8.181 published; 0.8.181 wave 3; 0.8.180 wave 2; 0.8.179 wave 1; 0.8.178 published; 0.8.177 tagged; 0.8.176 tagged; 0.8.175 tagged; 0.8.174 tagged; 0.8.173 tagged; 0.8.172 tagged; 0.8.171 tagged; 0.8.170 tagged; 0.8.169 published; 0.8.168 tagged; 0.8.167 tagged; 0.8.166 tagged; 0.8.165 tagged; 0.8.164 tagged; 0.8.161 and 0.8.163 tagged, 0.8.162's run cancelled by 0.8.163's tag, its changes ship in 0.8.163). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16 assets); **0.8.172** published 11:33 UTC (run 44070270550, 16 assets); **0.8.171** published 11:01 UTC and **0.8.170** 10:30 UTC; the runs of 0.8.173 to 0.8.177 were cancelled by the next tag, their changes ship in 0.8.178. This Mac took 0.8.172 by its own updater at 11:52 UTC (install waits while the window is shown). Earlier: **0.8.169** published 07:19 UTC (run 44033704090, 16 assets). Earlier: **0.8.167** published 06:58 UTC (16 assets); the runs of 0.8.164, 0.8.165, 0.8.166 and 0.8.168 were cancelled by the next tag, their changes ship in 0.8.167 and 0.8.169. Earlier: **0.8.163** published 06:26 UTC (run 44026390139, 16 assets). Earlier: **0.8.160** published 05:16 UTC (run 44019086342, 16 assets). Earlier: **0.8.159** published 02:43 UTC (run 44001070642), installed on this Mac 03:09 UTC by its own updater; **0.8.158** published 02:09 UTC (run 43996927838); **0.8.157** published 01:12 UTC (16 assets). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
+
+## 0.8.217: the sessions screen tells who pays and what each waits for (2026-11-19)
+
+- 0.8.216 (FD-350, PR #736): an MCP server whose hand-over to the updated copy fails keeps the session and tries again
+  every 5 s for 10 minutes (`HANDOVER_WAIT_MS`, `FABRIC_DASHBOARDS_MCP_WAIT_MS`), answering `updating` with
+  `retry_after_s` meanwhile; before, it gave up at once and the agent lost its tools (the cause behind FD-347's drops).
+  Published by run 44538570242 after Windows' LC-10 check failed once and passed on its rerun (16 assets).
+- 0.8.217 (FD-352, PR #737): the operator's review of the sessions screen. A session on its own timer or watch reads
+  «Waits for its own timer», never a limit (19 of 21 «waiting» sessions on this Mac were their own timers); the account
+  column names the account, or «Own sign-in, not through Switchboard»; ended sessions keep their account and, when a
+  console ended within 30 s, its last line; ended sessions are unfolded by default (`layout.endedClosed`). The copy
+  check's reports for the ten strings are in the commit.
+- Design (operator's words verbatim): `docs/design/2026-11-19-session-manager-everywhere.md`, the session manager
+  bundled in every product, one owner (first to start), shared data, newest wins, one package. Asked of Switchboard
+  and Fabric on the board, thread `7f9d0a09` (also: attribute a process Switchboard did not launch by its config home;
+  31 of 41 live sessions here have no account).
+- Mac Studio: a New session there ended at once with «Select an account for this provider first»: its groups other
+  than the default hold no account. Which account serves them is the operator's; asked (question `037c4d02`).
+- Published: 0.8.217 (run 44553799789, 15:53 UTC, 16 assets).
+- FD-351 (access across agents, contract DEC-0187): branch `feat/fd-351-access-grants` (`083e538e`, worktree
+  `~/DATA/_worktrees/fd-351`, not merged): the reader (`checkAccessGrants`, `grantState` in service-host, subpath
+  `./access-grants`; `readGrants` in `src/core/access-read.ts`, the pure `accessView`, `accessOf`, `anyDeclares` in
+  `src/core/access-view.ts`), MCP `access`, the Access tab on an agent's page (shown once any installed product
+  declares the list; one read serves every tab for 60 s), SCN-123 (draft), its 37 strings in both languages through the
+  copy check. Targeted tests green (`test/access-read.test.ts` 11, `test/mcp.test.ts` 74 with *FD-351*, copy and parity).
+  The full gate could not run here: the disk was under 1 GB and 88 `ENOSPC` failed unrelated tests. The first product
+  (the copy service) ships the list by 2026-11-24 (thread `747c6bb0`).
+- Waits: thread `7f9d0a09` (Switchboard, Fabric), question `037c4d02` (operator), thread `747c6bb0` (products'
+  `access.grants.list`), and the rows listed under 0.8.215.
+- Next task: FD-351 to main: `npm ci` and `FD_SKIP_LAUNCHD=1 npm run check` in its worktree once the disk has room
+  (over 5 GB free), a CHANGELOG line and the version (0.8.218), merge, tag; SCN-123 goes to implemented when the first
+  product's list is read on this Mac.
 
 ## 0.8.215: Help in Settings, the one review ask, a remote session's brief (2026-11-19)
 
