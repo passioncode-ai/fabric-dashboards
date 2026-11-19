@@ -40,7 +40,7 @@ import { HandoverBook } from '../core/handover-book';
 import { StopClaims } from '../core/stop-claims';
 import { RecoveryBook } from '../core/recovery-book';
 import { ownedRunner } from '../core/children';
-import { attachOwnKey, consoleRowId, degradedSince, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
+import { attachOwnKey, consoleRowId, lastLine, degradedSince, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -163,6 +163,8 @@ const AGENT_FOLDER_MS = 5 * 60_000;
 const trimSlash = (p: string) => (p.length > 1 ? p.replace(/[\\/]+$/, '') : p);
 const realOf = (p: string) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
 
+/** FD-352: an error exit within this long of the start is a failed start; its last line is the reason on its row. */
+const QUICK_FAIL_MS = 30_000;
 export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
@@ -770,6 +772,9 @@ export class ConsoleHost {
     }
     if (account?.kind === 'ordinary' && account.reason === 'no-route') this.o.log(`console: ${key}: the Switchboard default group selects no ${runtime.provider} account; ${runtime.id} starts on its own sign-in`);
     const managed = account?.kind === 'route';
+    // FD-352: what the session runs on, for its row: the group's account, or the runtime's own sign-in (an isolated
+    // session's account is Switchboard's to name, so it is left to its twin).
+    this.startedOn.set(key, account?.kind === 'route' ? { label: account.label } : saved?.isolated ? {} : { own: true });
     // Wave 1 (C-01 of the 2026-11-15 audit): `--continue` takes the folder's newest conversation, which a coding agent
     // working in this folder now (another terminal, another console) is writing: never a second copy of it.
     if (mode === 'continue' && (runtime.provider === 'claude' || runtime.provider === 'codex') && await this.folderBusy(folder.path)) {
@@ -1270,6 +1275,9 @@ export class ConsoleHost {
   /** FD-103: a console session ended: kept 24 h with how it ended (by the person, by the idle close, or by itself). A
    *  hand-over whose `handovers run` failed at once because Switchboard is older than this app is a hand-over that did
    *  not open, not a session that ended. */
+  /** FD-352: the account each console of this Mac started on (a Switchboard route's label) or its own sign-in. */
+  private readonly startedOn = new Map<string, { label?: string; own?: boolean }>();
+
   private recordEnd(key: string, code: number | null): void {
     // FD-211: a view of a hosted session ending is no session ending: the session is Switchboard's row, and it may run on.
     if (this.attachedOf.delete(key)) { this.endReasons.delete(key); this.originOf.delete(key); return; }
@@ -1289,8 +1297,13 @@ export class ConsoleHost {
       this.notOpened(h, 'switchboard-old', now);
       return;
     }
+    const on = this.startedOn.get(key);
+    this.startedOn.delete(key);
+    // FD-352: a session that ended with an error within its first half minute says why on its row, in its own last line.
+    const failLine = code !== null && code !== 0 && now - snap.startedAt < QUICK_FAIL_MS ? lastLine(snap.output) : null;
     this.keep({
-      id: consoleRowId(key, snap.startedAt), key, folder: this.shownFolder(key, snap.cwd), agent: h?.agent || snap.label || 'agent', account: h?.account || null, context: null,
+      id: consoleRowId(key, snap.startedAt), key, folder: this.shownFolder(key, snap.cwd), agent: h?.agent || snap.label || 'agent', account: h?.account || on?.label || null, context: null,
+      ...(on?.own && !h?.account ? { ownSignIn: true } : {}), ...(failLine ? { failLine } : {}),
       origin: this.originOf.get(key) ?? (h ? (resumed ? 'resume' : 'handover') : 'here'), end, reason: null, startedAt: snap.startedAt, endedAt: now,
       sessionId: known?.sessionId ?? null, provider: known?.provider ?? providerOf(h?.agent ?? snap.label), handoverId: h && !resumed ? h.id : null,
       paid: h && !resumed ? h.paid : null,
@@ -1457,7 +1470,8 @@ export class ConsoleHost {
       const resumed = this.resumedKeys.has(key);
       return {
         key, folder: this.shownFolder(key, snap.cwd), agent: h?.agent || snap.label || 'agent', startedAt: snap.startedAt ?? now,
-        origin: this.originOf.get(key) ?? (h ? (resumed ? 'resume' : 'handover') : 'here'), account: h?.account || null,
+        origin: this.originOf.get(key) ?? (h ? (resumed ? 'resume' : 'handover') : 'here'), account: h?.account || this.startedOn.get(key)?.label || null,
+        ...(this.startedOn.get(key)?.own && !h?.account ? { ownSignIn: true } : {}),
         failedResume: this.failedResumes.has(key), handoverId: h && !resumed ? h.id : null, paid: h && !resumed ? h.paid : null,
         attachedTo: this.attachedOf.get(key) ?? null,
       };

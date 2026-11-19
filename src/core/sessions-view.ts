@@ -176,6 +176,8 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
     }
     case 'ended-cannot-continue': // FD-108
       return t(lang, 'sessions.state.cannotContinue', { why: t(lang, `sessions.cannot.${r.reason ?? 'resume-failed'}`) });
+    case 'waiting-own': // FD-352: its own wake-up or watch, never a limit
+      return r.ownWait?.until ? t(lang, 'sessions.state.waiting-own', { time: clock(lang, r.ownWait.until) }) : t(lang, 'sessions.state.waiting-own.open');
     case 'waiting-reset':
       if (r.reason === 'limit-terminal') return t(lang, 'sessions.state.limitTerminal'); // FD-291 step 2: not this app's to continue
       if (o.autoContinue === false) return t(lang, 'sessions.state.autoOff');
@@ -183,6 +185,8 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
     case 'ended':
       if (r.reason === 'declined') return t(lang, 'sessions.state.declined');
       if (r.reason === 'quit') return t(lang, 'sessions.state.quit'); // R1-S4
+      // FD-352: a start that failed at once says why, in the session's own last line.
+      if (r.failLine) return t(lang, 'sessions.state.failed', { time: clock(lang, r.endedAt ?? r.at), why: r.failLine });
       return t(lang, 'sessions.state.ended', { time: clock(lang, r.endedAt ?? r.at) });
     // FD-107: every ended state with an end of its own says when, so a card's order (by its end) reads in its words.
     case 'running-unmanaged': // FD-231: one whose transcripts went quiet says for how long
@@ -200,6 +204,13 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
 export function tableStateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolean } = {}): string {
   if (r.state === 'running-unmanaged' && r.quietMinutes === undefined) return t(lang, 'sessions.state.running-ours');
   return stateWords(lang, r, o);
+}
+
+/** FD-352: the account a row names: Switchboard's, or, for a session started outside Switchboard (it records none), that
+ *  it runs on its own sign-in; null when neither is known. */
+export function accountWords(lang: Lang, r: Pick<SessionRow, 'account' | 'origin' | 'ownSignIn'>): string | null {
+  if (r.account) return r.account;
+  return r.origin === 'machine' || r.ownSignIn ? t(lang, 'sessions.account.own') : null;
 }
 
 /** FD-231: a row's name, its folder's last name; a process whose folder Switchboard could not read says so. */

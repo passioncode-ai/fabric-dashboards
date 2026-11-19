@@ -503,7 +503,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
           ? <AgentsNav page={agentsPage} status={status} everyAgent={everyAgent.services} arranged={arranged} products={products} currentProduct={currentProduct} layout={layout} changeLayout={changeLayout} open={open}
             go={(page) => setRoute({ page })} rail={rail} queue={queue.length} urgent={queue.some(urgent)} auditErrors={auditErrors} hiddenProblem={hiddenProblem} menu={rowMenu} />
           : <SessionsNav folded={layout.sessionsFolded} onFold={(m, f) => changeLayout({ sessionsFolded: f ? [...layout.sessionsFolded.filter((x) => x !== m), m] : layout.sessionsFolded.filter((x) => x !== m) })} sessions={status.sessions} currentId={route.page === 'session' ? (sessionRow?.id ?? route.id) : null} allCurrent={route.page === 'sessions'} rail={rail}
-            endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} openAll={() => setRoute({ page: 'sessions' })} openRow={openSession} onNew={() => setNewSession('session')} />}
+            endedOpen={!layout.endedClosed} onEndedOpen={(o) => changeLayout({ endedClosed: !o })} openAll={() => setRoute({ page: 'sessions' })} openRow={openSession} onNew={() => setNewSession('session')} />}
         <div className="sidebar-footer">
           {!rail && <UpdateLine status={status} />}
           {rail && <RailUpdate status={status} goSettings={() => setRoute({ page: 'settings' })} />}
@@ -557,7 +557,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
               {route.page === 'map' && <ConnectionsMap status={status} every={orgs.length ? everyAgent.services : undefined} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
               {route.page === 'settings' && <Settings status={status} onTheme={onTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} section={route.section} nonce={route.nonce} />}
               {route.page === 'sessions' && <AllSessions sessions={status.sessions} noteSeen={noteSeen} onNoteSeen={onNoteSeen} onSetUp={() => setRoute({ page: 'settings', section: 'sessions', nonce: Date.now() })}
-                endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} onNewThere={(m) => { setNewSessionMachine(m); setNewSession('session'); }} filter={layout.sessionsFilter} onFilter={(f) => changeLayout({ sessionsFilter: { machines: [...f.machines], groups: [...f.groups], origins: [...f.origins] } })} open={openSession} askEnd={askEnd} continued={(key) => setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS })} />}
+                endedOpen={!layout.endedClosed} onEndedOpen={(o) => changeLayout({ endedClosed: !o })} onNewThere={(m) => { setNewSessionMachine(m); setNewSession('session'); }} filter={layout.sessionsFilter} onFilter={(f) => changeLayout({ sessionsFilter: { machines: [...f.machines], groups: [...f.groups], origins: [...f.origins] } })} open={openSession} askEnd={askEnd} continued={(key) => setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS })} />}
             </div>
             </div>
           )}

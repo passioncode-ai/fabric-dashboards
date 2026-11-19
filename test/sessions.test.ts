@@ -737,3 +737,54 @@ test('FD-337: End on such a row asks Switchboard to end it, and only when the pa
   assert.ok(r.calls.some((c) => c.join(' ') === `switchboard --json sessions end ${hosted}`), 'Switchboard\'s own door');
   assert.ok(!r.calls.some((c) => c.join(' ') === `switchboard --json sessions end ${plain}`));
 });
+
+// FD-352 (the operator, 2026-11-19): the sessions screen names what each session runs on and what it waits for. Measured
+// on this Mac the same day: of 21 sessions Switchboard put in its waiting group, 19 waited on their own timer or watch
+// (`why: monitoring`, `wait.until`) and 2 on a limit; every one was shown as waiting for a limit reset.
+test('FD-352: a session waiting on its own timer is not shown as waiting for a limit; a limit stop still is', async () => {
+  const { accountWords } = await import('../src/core/sessions-view');
+  const page = (o: Partial<SbPageRow>): SbPageRow => ({ id: 'pid:7001', group: 'waiting', why: 'monitoring', acts: [], agent: 'claude-code', folder: '/w/own', account: null, origin: null, since: NOW - 10 * MIN, launchId: null, sessionId: null, quietMinutes: 1, probeAt: null, wait: { until: NOW + 7 * MIN, held: true }, ...o });
+  const rows = mergeSessions(input({ page: [page({}), page({ id: 'pid:7002', why: 'limit', folder: '/w/capped', wait: null, probeAt: NOW + HOUR })] }));
+  const own = rows.find((r) => r.project === 'own')!;
+  assert.equal(own.state, 'waiting-own');
+  assert.equal(own.group, 'waiting');
+  assert.equal(own.reason, null);
+  assert.deepEqual(own.ownWait, { until: NOW + 7 * MIN, held: true });
+  assert.match(stateWords('en', own), /^Waits for its own timer until /);
+  assert.equal(stateWords('en', { ...own, ownWait: { until: null, held: false } }), 'Waits for its own timer or watch');
+  const capped = rows.find((r) => r.project === 'capped')!;
+  assert.equal(capped.state, 'waiting-reset');
+  assert.equal(capped.reason, 'limit-terminal');
+  // A session started outside Switchboard names its own sign-in rather than a blank.
+  assert.equal(accountWords('en', own), 'Own sign-in, not through Switchboard');
+  assert.equal(accountWords('en', { account: 'claude1@example.com', origin: 'machine' }), 'claude1@example.com');
+  assert.equal(accountWords('en', { account: null, origin: 'here' }), null, 'a console of this app with no account recorded says nothing it does not know');
+  assert.equal(accountWords('en', { account: null, origin: 'here', ownSignIn: true }), 'Own sign-in, not through Switchboard');
+});
+
+test('FD-352: another machine\'s session waiting on its own timer reads the same; the sessions page keeps its wait', () => {
+  const rows = mergeSessions(input({ remote: [{ machine: 'studio', rows: [], page: [{ id: 'pid:88', group: 'waiting', why: 'monitoring', acts: [], agent: 'claude-code', folder: '/srv/x/proj', account: 'a@example.com', origin: 'fabric', since: NOW - MIN, launchId: null, sessionId: null, quietMinutes: 0, probeAt: null, wait: { until: NOW + 5 * MIN, held: false } }] }] }));
+  const r = rows.find((x) => x.machine === 'studio')!;
+  assert.equal(r.state, 'waiting-own');
+  assert.equal(r.ownWait?.until, NOW + 5 * MIN);
+});
+
+test('FD-352: a start that failed at once keeps its own last line as the reason; what it ran on is kept with it', async () => {
+  const { lastLine } = await import('../src/core/sessions');
+  assert.equal(lastLine('\u001b[2mstarting\u001b[0m\r\nSelect an account for this provider first (switchboard accounts select).\r\nConnection to 192.0.2.9 closed.\r\r\n'), 'Select an account for this provider first (switchboard accounts select).');
+  assert.equal(lastLine('\r\n\r\n'), null);
+  assert.equal(lastLine('x'.repeat(500))!.length, 200);
+  const rec: SessionRecord = { id: consoleRowId('session.ab12', NOW - MIN), key: 'session.ab12', folder: '/w/zero', agent: 'Claude Code', account: null, context: null, origin: 'here', end: 'ended', reason: null, startedAt: NOW - MIN, endedAt: NOW - MIN + 300, sessionId: null, provider: 'claude', handoverId: null, ownSignIn: true, failLine: 'Select an account for this provider first (switchboard accounts select).' };
+  const r = mergeSessions(input({ records: [rec] })).find((x) => x.key === 'session.ab12')!;
+  assert.equal(r.failLine, rec.failLine);
+  assert.equal(r.ownSignIn, true);
+  assert.match(stateWords('en', r), /^Did not start, ended at .*: Select an account/);
+  assert.match(stateWords('ru', r), /^Не запустилась, завершилась в .*: Select an account/);
+});
+
+test('FD-352: the Ended group is unfolded by default, and the earlier endedOpen saved off no longer folds it', () => {
+  const { merge } = require('../src/core/settings') as typeof import('../src/core/settings');
+  assert.equal(merge({}).layout.endedClosed, false);
+  assert.equal(merge({ layout: { endedOpen: false } } as never).layout.endedClosed, false, 'the earlier default is not read as a choice');
+  assert.equal(merge({ layout: { endedClosed: true } } as never).layout.endedClosed, true, 'the person folding it is kept');
+});

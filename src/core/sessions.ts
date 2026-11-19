@@ -31,6 +31,7 @@ export type SessionState =
   | 'needs-you-resume-failed' // continued after a limit, did not take up its conversation, still runs
   | 'needs-you-not-opened' // could not open here; `reason` says why
   | 'waiting-reset' // stopped on a limit; `expectedAt` says when it is likely to continue
+  | 'waiting-own' // FD-352: waits on its own timer or monitor (Switchboard's `why: monitoring`), not on a limit
   | 'ended'
   | 'ended-cannot-continue' // FD-108: a limit stop of the last day whose folder or conversation is not here; `reason` says which
   | 'idle-closed' // closed after 30 idle minutes (LC-18)
@@ -112,6 +113,13 @@ export interface SessionRow {
   /** FD-231: a session no owner started whose folder's transcripts Switchboard found unwritten for its quiet time (30
    *  minutes): how many minutes. Absent for every other row. */
   quietMinutes?: number;
+  /** FD-352: it runs or ran on the runtime's own sign-in, not on a Switchboard account. */
+  ownSignIn?: boolean;
+  /** FD-352: a start that failed within its first half minute: the last line it printed. */
+  failLine?: string;
+  /** FD-352: a session that waits on its own timer or monitor (a wake-up it set, a watch it runs), never on a limit:
+   *  until when (null: it named no time). Absent for every other row. */
+  ownWait?: { until: number | null; held: boolean };
   /** FD-291: another machine's limit stop that its Switchboard reads as ready to continue (`acts: continue`, SB-395):
    *  the session id Continue passes to `sessions continue` there. Absent for every other row. */
   remoteSession?: string;
@@ -166,6 +174,9 @@ export interface SbPageRow {
   sessionId: string | null;
   quietMinutes: number | null;
   probeAt: number | null;
+  /** FD-352: a session waiting on its own timer or monitor (`why: monitoring`): until when, and whether Switchboard keeps
+   *  it from the idle close meanwhile (`held`). Null for every other row. */
+  wait?: { until: number | null; held: boolean } | null;
 }
 
 /** Who started a launch, as Switchboard recorded it. Each field is null when absent or not of the expected form. */
@@ -225,6 +236,8 @@ export interface ConsoleInput {
   paid?: Paid;
   /** FD-211: this console only shows a session Switchboard's session host holds (`switchboard attach`): the launch id. */
   attachedTo?: string | null;
+  /** FD-352: it runs on the runtime's own sign-in, not on a Switchboard account. */
+  ownSignIn?: boolean;
 }
 
 /** FD-231 (SL-8, SB-353): one Claude Code or Codex process of this user, as `switchboard --json sessions --machine` reads
@@ -261,6 +274,10 @@ export interface SessionRecord {
   handoverId: string | null;
   /** FD-124: kept from the hand-over, so the row still says it ran on money once Switchboard stops offering it. */
   paid?: Paid;
+  /** FD-352: it ran on the runtime's own sign-in, not on a Switchboard account. */
+  ownSignIn?: boolean;
+  /** FD-352: it ended with an error within its first half minute: its last line, the reason its row shows. */
+  failLine?: string;
 }
 
 export interface Dismissal { id: string; at: number }
@@ -352,7 +369,7 @@ const sbRowId = (r: SbSessionRecord) => {
 export function groupOf(state: SessionState): SessionGroup {
   if (state.startsWith('needs-you')) return 'needs-you';
   if (state.startsWith('running')) return 'running';
-  if (state === 'waiting-reset') return 'waiting';
+  if (state === 'waiting-reset' || state === 'waiting-own') return 'waiting';
   return 'ended';
 }
 
@@ -370,6 +387,7 @@ export function actionsFor(state: SessionState, o: { continueNow?: boolean } = {
     case 'running-terminal': return ['reveal']; // V-6 of FIX-2: its folder, the one thing this app can show
     case 'running-background': return ['reveal'];
     case 'running-unmanaged': return ['reveal']; // not ours to end or type to: its folder is what this app can show
+    case 'waiting-own': return ['reveal']; // FD-352: it continues by itself; its folder is what this app can show
     case 'needs-you-resume-failed': return ['openConsole', 'end'];
     case 'needs-you-not-opened': return ['dismiss'];
     case 'ended-cannot-continue': return ['dismiss'];
@@ -468,6 +486,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       id: consoleRowId(c.key, c.startedAt), key: c.key, folder: c.folder, agent: c.agent, account: c.account ?? s?.account ?? null,
       context: s?.context ?? null, contextName: s?.contextName ?? null, origin: c.origin, reason: null,
       state: c.failedResume ? 'needs-you-resume-failed' : 'running-ours', startedAt: c.startedAt, endedAt: null, launch: s?.launch ?? null, paid: c.paid ?? null,
+      ...(c.ownSignIn && !c.account && !s?.account ? { ownSignIn: true } : {}),
     }));
   }
 
@@ -488,11 +507,15 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       continue;
     }
     const s = r.id.startsWith('c:') ? sbOf(r.folder, r.startedAt) : undefined; // only a console of this app has a twin
-    add(row({
+    const ended = row({
       id: r.id, key: r.key, folder: r.folder, agent: r.agent, account: r.account ?? s?.account ?? null, context: r.context ?? s?.context ?? null,
       contextName: s?.contextName ?? null, origin: r.end === 'declined' ? 'limit' : r.origin, reason: END_REASON[r.end] ?? null, state: END_STATE[r.end], startedAt: r.startedAt, endedAt: r.endedAt, // V-1: 0.8.0 builds wrote 'resume' for a decline
       resumable: r.sessionId !== null || r.provider === 'claude' || (r.origin === 'here' && r.key !== null), launch: s?.launch ?? null, paid: r.paid ?? null,
-    }));
+    });
+    // FD-352: a record kept from its start says what it ran on and, for a start that failed at once, why.
+    if (r.ownSignIn === true && !ended.account) ended.ownSignIn = true;
+    if (typeof r.failLine === 'string' && r.failLine) ended.failLine = r.failLine.slice(0, 200);
+    add(ended);
   }
 
   // 3. Hand-overs Switchboard offered that this app has not acted on: one still on offer is not a row (it is taken at
@@ -596,7 +619,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
         providerSessionId: p.sessionId, turns: null, lastTurnAt: null, ended: null, endedAt: ended ? p.since : null, continuedAs: null,
       } : null;
       const state: SessionState = p.group === 'running' ? (p.origin === 'fabric' ? 'running-background' : p.id.startsWith('pid:') && p.origin === null ? 'running-unmanaged' : 'running-terminal')
-        : p.group === 'waiting' ? 'waiting-reset' : p.group === 'needs_you' ? 'needs-you-not-opened' : p.why === 'closed_idle' ? 'idle-closed' : 'ended';
+        : p.group === 'waiting' ? (p.why === 'monitoring' ? 'waiting-own' : 'waiting-reset') : p.group === 'needs_you' ? 'needs-you-not-opened' : p.why === 'closed_idle' ? 'idle-closed' : 'ended';
       const reason: SessionReason | null = p.group !== 'needs_you' ? null
         : p.why === 'ready_to_continue' ? 'remote-ready' : p.why === 'gone' ? 'remote-gone' : p.why === 'duplicate' ? 'remote-twice' : p.why === 'stuck' ? 'remote-stuck' : 'remote-needs';
       const live = p.launchId && LAUNCH_RE.test(p.launchId);
@@ -610,6 +633,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
         reason, state, startedAt: ended ? null : p.since, endedAt: ended ? p.since : null, launch, expectedAt: p.group === 'waiting' ? p.probeAt : null,
       });
       if (p.quietMinutes !== null && p.why === 'quiet') r.quietMinutes = p.quietMinutes;
+      if (state === 'waiting-own') r.ownWait = { until: p.wait?.until ?? null, held: p.wait?.held === true };
       if (ready) { r.remoteSession = p.sessionId!; r.resumable = true; }
       add(r);
     }
@@ -625,12 +649,16 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       if (!p.id.startsWith('pid:') || p.group === 'ended' || p.launchId || ours(p.folder, p.since)) continue;
       const pid = Number(p.id.slice(4));
       if (!Number.isInteger(pid) || pid <= 0) continue;
-      const waiting = p.group === 'waiting';
+      // FD-352: Switchboard's waiting group holds both a session stopped by a limit and one waiting on its own timer or
+      // monitor (`why: monitoring`); only the first waits for a reset.
+      const own = p.group === 'waiting' && p.why === 'monitoring';
+      const waiting = p.group === 'waiting' && !own;
       const r = row({
         id: processRowId(pid, p.since), key: null, folder: p.folder, agent: p.agent === 'codex' ? 'codex' : 'claude-code', account: p.account, context: null,
-        origin: 'machine', state: waiting ? 'waiting-reset' : 'running-unmanaged', reason: waiting ? 'limit-terminal' : null, startedAt: p.since, endedAt: null,
+        origin: 'machine', state: own ? 'waiting-own' : waiting ? 'waiting-reset' : 'running-unmanaged', reason: waiting ? 'limit-terminal' : null, startedAt: p.since, endedAt: null,
         actions: ['reveal'],
       });
+      if (own) r.ownWait = { until: p.wait?.until ?? null, held: p.wait?.held === true };
       // Its last write, from how long it has been quiet when Switchboard read it.
       if (p.quietMinutes !== null) r.at = Math.max(r.at, i.now - p.quietMinutes * 60_000);
       if (!waiting && p.why === 'quiet' && p.quietMinutes !== null) r.quietMinutes = p.quietMinutes;
@@ -697,4 +725,12 @@ export function remoteRowId(machine: string, s: Pick<SbSessionRecord, 'folder' |
 export function dropRemoteTwins(rows: SessionRow[]): SessionRow[] {
   const ours = rows.filter((r) => r.key && r.machine);
   return rows.filter((r) => !(r.id.startsWith('rm:') && ours.some((o) => o.machine === r.machine && o.folder === r.folder && (o.startedAt === null || r.startedAt === null || Math.abs(o.startedAt - r.startedAt) <= SAME_START_MS))));
+}
+
+/** The last line a session printed, without terminal codes, at most 200 characters; null when it printed none. */
+/** FD-352 */
+export function lastLine(output: string): string | null {
+  const plain = output.replace(/\u001b\[[0-9;?]*[ -\/]*[@-~]/g, '').replace(/\u001b\][^\u0007]*\u0007/g, '');
+  const line = plain.split(/\r?\n|\r/).map((l) => l.trim()).filter(Boolean).filter((l) => !/^Connection to \S+ closed\.?$/.test(l)).pop();
+  return line ? line.slice(0, 200) : null;
 }
