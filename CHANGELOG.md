@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.211 - 2026-11-19
+
+### Fixed
+- FD-345: Check setup no longer reports Fabric Dashboards itself as failing on every coding agent. It now runs the
+  launcher's doctor 0.2.80, which proves an MCP server with the two doors `search` and `execute` by one read.
+
 ## 0.8.210 - 2026-11-19
 
 ### Changed
