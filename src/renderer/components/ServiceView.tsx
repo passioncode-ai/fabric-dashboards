@@ -16,6 +16,8 @@ import { CompactActions, FixButton, UnavailablePane } from './ServiceActions';
 import { Connections } from './Connections';
 import { HealthEntry } from './HealthReport';
 import { Load } from './Load';
+import { Access } from './Access';
+import { anyDeclares } from '../../core/access-view';
 import { PaneBoundary } from './PaneBoundary';
 import { subscriptionCost, usd } from './Spend';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
@@ -24,7 +26,7 @@ import { placedElsewhere } from '@passioncode-ai/fabric-service-host/state';
 import fabricMark from '../brand/passioncode-mark.svg';
 import { shownState } from '../../core/setup-wait';
 
-type Tab = 'dashboard' | 'activity' | 'connections' | 'load' | 'health' | 'logs';
+type Tab = 'dashboard' | 'activity' | 'connections' | 'load' | 'access' | 'health' | 'logs';
 
 /** FD-220: what the dashboard's toolbar offers when the page around it can step aside: fill the window (no agent list,
  *  no page header) and back, and the console, which the hidden header no longer offers. */
@@ -148,7 +150,9 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   };
   // FD-93: the Load tab is there when the agent declares its load, rightly or not (a wrong declaration is reported there).
   const load = loadOf(s.wellKnown);
-  const tabs = (['dashboard', 'activity', 'connections', ...(load.declared || load.reported ? ['load'] : []), 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
+  // FD-351: the Access tab is there once any installed product lists access (DEC-0187); before that it would say nothing.
+  const access = anyDeclares(all);
+  const tabs = (['dashboard', 'activity', 'connections', ...(load.declared || load.reported ? ['load'] : []), ...(access ? ['access'] : []), 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
   // FD-93 review: a tab that leaves the list (Load, once the agent stops answering) never leaves an empty pane.
   useEffect(() => { if (!tabs.includes(tab)) setTabState(hasDashboard ? 'dashboard' : 'health'); }, [tabs.join(), tab, hasDashboard]);
   const conflictWith = s.state === 'conflict' ? all.filter((o) => o.key !== s.key && o.state === 'conflict' && portOf(o) === portOf(s)) : [];
@@ -272,6 +276,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         {tab === 'activity' && <div className="pane">{dispatches && dispatches.length > 0 && <Dispatches lines={dispatches} onSession={onSession} />}<ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} members={members} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
+        {tab === 'access' && tabs.includes('access') && <div className="pane"><Access s={s} all={all} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} detailsShown={cardShown} report={health} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} launchd={s.launchd} /></div>}
         </PaneBoundary>

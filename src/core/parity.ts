@@ -19,6 +19,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   spend: { tool: 'spend' },
   spendLimitSet: { tool: 'spend_limit_set' },
   load: { tool: 'load' },
+  access: { tool: 'access' },
   activity: { tool: 'activity' },
   activitySeen: { person: 'marks what the person has seen; an agent marking it would hide news from them (FD-249)' },
   settings: { tool: 'settings' },

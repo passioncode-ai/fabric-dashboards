@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AccessGrants, Grant } from '@passioncode-ai/fabric-service-host';
-import { accessOf, GRANT_PAGES, grantsDoorOf, readGrants, type GrantsRead } from '../src/core/access-read';
+import { accessOf, accessView, anyDeclares, GRANT_PAGES, grantsDoorOf, readGrants, type GrantsRead } from '../src/core/access-read';
 
 const ORIGIN = 'http://127.0.0.1:47123';
 const AT = '2026-11-19T10:00:00Z';
@@ -123,4 +123,29 @@ test('FD-351: an agent holds what names it as holder; it is opened by what names
   const writer = accessOf('writer.cloud', reads);
   assert.deepEqual(writer.holds.map((h) => h.grant.id), ['a2']);
   assert.deepEqual(writer.grantedTo.map((h) => `${h.issuer}/${h.grant.id}`), ['writer.cloud/k1', 'writer.cloud/k2', 'fabric.default/a1']);
+});
+
+test('FD-351: the Access tab shows active grants first, newest first, each with its state at the read, and every product\'s read', () => {
+  const now = Date.parse('2026-11-19T12:00:00Z');
+  const reads: GrantsRead[] = [
+    { key: 'writer.cloud', state: 'read', answer: answer([
+      grant('old', { issued: { at: '2026-11-01T09:00:00Z', by: 'operator', via: 'dashboard' } }),
+      grant('gone', { issued: { at: '2026-11-18T09:00:00Z', by: 'operator', via: 'dashboard' }, revoked: { at: '2026-11-18T10:00:00Z', by: 'operator', via: 'dashboard' } }),
+      grant('new', { issued: { at: '2026-11-15T09:00:00Z', by: 'operator', via: 'dashboard' } }),
+      grant('lapsed', { issued: { at: '2026-11-02T09:00:00Z', by: 'operator', via: 'dashboard' }, expiresAt: '2026-11-10T00:00:00Z' }),
+    ]) },
+    { key: 'stores.default', state: 'not-declared' },
+    { key: 'vault.default', state: 'unreadable', why: 'it does not answer now (down)' },
+  ];
+  const v = accessView('media.default', reads, now, '2026-11-19T12:00:00.000Z');
+  assert.deepEqual(v.holds.map((r) => [r.grant.id, r.state]), [['new', 'active'], ['old', 'active'], ['gone', 'revoked'], ['lapsed', 'expired']]);
+  assert.deepEqual(v.grantedTo, []);
+  assert.deepEqual(v.products, [{ key: 'writer.cloud', state: 'read' }, { key: 'stores.default', state: 'not-declared' }, { key: 'vault.default', state: 'unreadable', why: 'it does not answer now (down)' }]);
+  assert.equal(v.readAt, '2026-11-19T12:00:00.000Z');
+});
+
+test('FD-351: the tab appears once any installed product declares the list, not for a compact door alone', () => {
+  assert.equal(anyDeclares([look({ compact: { execute: 'writer.execute' } }), look(null)]), false);
+  assert.equal(anyDeclares([look({ capabilities: ['access.grants.list'] })]), true);
+  assert.equal(anyDeclares([{ descriptor: null, wellKnown: look({ capabilities: ['access.grants.list'] }).wellKnown }]), false, 'a service with no descriptor is not installed');
 });
