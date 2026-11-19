@@ -45,7 +45,11 @@ export interface WellKnown {
   surfaces: {
     dashboard?: { path: string; login: boolean };
     /** `capabilities` (contract DEC-0016/0020): the names the MCP surface serves, shown without the token. */
-    mcp?: { path: string; transport: 'streamable-http'; capabilities?: string[] };
+    mcp?: {
+      path: string; transport: 'streamable-http'; capabilities?: string[];
+      /** DEC-0180 CM-1: a compact surface's two doors and its direct tools; `capabilities` still names every capability. */
+      compact?: { search: string; execute: string; direct?: string[] };
+    };
     events: { path: string; stream?: string };
     /** DEC-0021: the service's own spend report, behind the token (`./usage`). */
     usage?: { path: string };

@@ -75,6 +75,24 @@ export interface CallOptions {
   meta?: Record<string, unknown>;
   /** FD-324: the key an `execute` door asks of an act on another agent (agents base R33, two doors). */
   idempotencyKey?: string;
+  /** FD-343 (contract DEC-0180 CM-1): the execute tool the surface declares in `surfaces.mcp.compact.execute`. */
+  execute?: string;
+}
+
+/**
+ * FD-343: the tool that runs an operation by name on a server with two doors, or undefined when it has none. The name
+ * the surface declares (DEC-0180 CM-1) wins, in its dotted or underscored spelling; else a tool named `execute`; else,
+ * for a surface pinned before DEC-0180 (DEC-0182 TD-5), the one tool whose name ends in `.execute` beside a `search`
+ * door (`search` or a name ending in `.search`), as the agents base names them (`<domain>.execute`, its D-75).
+ */
+export function executeDoorOf(names: string[], declared?: string): string | undefined {
+  if (declared) {
+    const named = [declared, declared.replace(/[.-]/g, '_')].find((n) => names.includes(n));
+    if (named) return named;
+  }
+  if (names.includes('execute')) return 'execute';
+  const doors = names.filter((n) => n.endsWith('.execute'));
+  return doors.length === 1 && names.some((n) => n === 'search' || n.endsWith('.search')) ? doors[0] : undefined;
 }
 
 export async function callCapability(target: McpTarget, capability: string, args: Record<string, unknown>, clientVersion: string, timeoutMs = 15_000, opts: CallOptions = {}): Promise<unknown> {
@@ -97,9 +115,10 @@ export async function callCapability(target: McpTarget, capability: string, args
     const listed = await send(target, 'POST', { jsonrpc: '2.0', id: 3, method: 'tools/list' }, session, deadline);
     const names = ((rpcResult(listed, 3).result as { tools?: { name?: unknown }[] } | undefined)?.tools ?? []).map((t) => t.name).filter((n): n is string => typeof n === 'string');
     const direct = [capability, capability.replace(/[.-]/g, '_')].find((n) => names.includes(n));
-    // FD-324: a server with two doors (agents base R33) runs the operation through `execute` by its name.
-    const viaDoor = !direct && names.includes('execute');
-    const tool = direct ?? (viaDoor ? 'execute' : undefined);
+    // FD-324: a server with two doors (agents base R33) runs the operation through its execute door by its name.
+    const door = direct ? undefined : executeDoorOf(names, opts.execute);
+    const viaDoor = door !== undefined;
+    const tool = direct ?? door;
     if (!tool) throw new Error(`the server offers no tool for ${capability} (it lists ${names.slice(0, 8).join(', ') || 'none'})`);
     const callArgs = viaDoor ? { operation: capability, arguments: args, ...(opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey } : {}) } : args;
     const call = await send(target, 'POST', { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: callArgs, ...(opts.meta ? { _meta: opts.meta } : {}) } }, session, deadline);

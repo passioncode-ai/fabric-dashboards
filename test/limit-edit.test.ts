@@ -6,7 +6,7 @@ import http from 'node:http';
 import path from 'node:path';
 import test from 'node:test';
 import { summarizeUsage } from '@passioncode-ai/fabric-service-host/usage';
-import { callCapability } from '../src/core/mcp-client';
+import { callCapability, executeDoorOf } from '../src/core/mcp-client';
 import { changeOf, limitDoorOf, planLimitChange } from '../src/core/limit-edit';
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract', name), 'utf8'));
@@ -73,6 +73,49 @@ test('FD-324: callCapability carries _meta, and reaches an agent with two doors 
   tools = ['spend_limits_set'];
   await callCapability(target, 'spend.limits.set', args, '0.8.205', 5_000, { idempotencyKey: 'k-2' });
   assert.deepEqual(calls[1], { name: 'spend_limits_set', args, meta: undefined }, 'a tool of its own takes the arguments as they are');
+});
+
+test('FD-343 (DEC-0180 CM-1, DEC-0182 TD-5): the execute door is the declared one, else `execute`, else one `<domain>.execute` beside a search door', () => {
+  assert.equal(executeDoorOf(['records.search', 'records.execute'], 'records.execute'), 'records.execute');
+  assert.equal(executeDoorOf(['records_search', 'records_execute'], 'records.execute'), 'records_execute', 'the declared name in its underscored spelling');
+  assert.equal(executeDoorOf(['search', 'execute']), 'execute');
+  assert.equal(executeDoorOf(['assessment.search', 'assessment.execute']), 'assessment.execute', 'a surface pinned before DEC-0180');
+  assert.equal(executeDoorOf(['search', 'agents_db.execute']), 'agents_db.execute');
+  assert.equal(executeDoorOf(['assessment.execute']), undefined, 'no search door: not a two-door surface');
+  assert.equal(executeDoorOf(['a.search', 'a.execute', 'b.execute']), undefined, 'two candidates: none is guessed');
+  assert.equal(executeDoorOf(['records.list', 'records.get']), undefined);
+  const s = { descriptor: { origin: 'http://127.0.0.1:8720' }, wellKnown: { surfaces: { mcp: { transport: 'streamable-http', path: '/mcp', capabilities: ['spend.limits.set'], compact: { search: 'spend.search', execute: 'spend.execute' } } } } };
+  assert.deepEqual(limitDoorOf(s), { origin: 'http://127.0.0.1:8720', path: '/mcp', execute: 'spend.execute' });
+});
+
+test('FD-343: callCapability reaches a `<domain>.execute` door, and the declared one before any other', async (t) => {
+  const calls: { name: string; args: unknown }[] = [];
+  let tools = ['assessment.search', 'assessment.execute'];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      if (req.method === 'DELETE') { res.writeHead(204); res.end(); return; }
+      const msg = JSON.parse(body) as { id?: number; method: string; params?: { name: string; arguments?: unknown } };
+      const json = (result: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result })); };
+      if (msg.method === 'initialize') return json({ protocolVersion: '2025-03-26' });
+      if (!msg.id) { res.writeHead(202); res.end(); return; }
+      if (msg.method === 'tools/list') return json({ tools: tools.map((name) => ({ name })) });
+      calls.push({ name: msg.params!.name, args: msg.params!.arguments });
+      return json({ structuredContent: { change: { id: 'chg-1' } } });
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+  const target = { origin: `http://127.0.0.1:${(server.address() as { port: number }).port}`, path: '/mcp' };
+  const args = { limitId: 'machine.daily', limitUsd: 10, reason: 'calmer' };
+  await callCapability(target, 'spend.limits.set', args, '0.8.207', 5_000, { idempotencyKey: 'k-1' });
+  assert.deepEqual(calls[0], { name: 'assessment.execute', args: { operation: 'spend.limits.set', arguments: args, idempotencyKey: 'k-1' } });
+  tools = ['search', 'execute', 'spend.run'];
+  await callCapability(target, 'spend.limits.set', args, '0.8.207', 5_000, { idempotencyKey: 'k-2', execute: 'spend.run' });
+  assert.equal(calls[1]!.name, 'spend.run', 'the name the surface declares wins over a plain `execute`');
+  tools = ['records.list'];
+  await assert.rejects(callCapability(target, 'spend.limits.set', args, '0.8.207', 5_000), /offers no tool for spend\.limits\.set/);
 });
 
 test('FD-324: Change shows the amount within its bounds, Enforced and the reason; the change history reads in words', async () => {

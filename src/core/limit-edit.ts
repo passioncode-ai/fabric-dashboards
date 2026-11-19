@@ -46,7 +46,8 @@ export async function applyLimitChange(o: {
   const key = o.idempotencyKey ?? `fd-${createHash('sha256').update(JSON.stringify([o.key, plan.args, o.decision?.at ?? null, Math.floor(o.now / 60_000)])).digest('hex').slice(0, 32)}`;
   let result: unknown;
   try {
-    result = await callCapability({ ...door, headers }, SPEND_LIMITS_SET, { ...plan.args, idempotencyKey: key }, o.version, 20_000, { ...(o.decision ? { meta: { decision: o.decision } } : {}), idempotencyKey: key });
+    const { execute, ...at } = door;
+    result = await callCapability({ ...at, headers }, SPEND_LIMITS_SET, { ...plan.args, idempotencyKey: key }, o.version, 20_000, { ...(o.decision ? { meta: { decision: o.decision } } : {}), idempotencyKey: key, ...(execute ? { execute } : {}) });
   } catch (error) {
     throw new LimitEditError('agent-refused', (error as Error).message);
   }
