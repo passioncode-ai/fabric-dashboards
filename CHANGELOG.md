@@ -5,6 +5,8 @@
 ### Added
 - FD-348: Settings has a Help group. Write to support opens an email to PassionCode support that already names this
   app and its version; Privacy policy opens PassionCode's privacy page.
+- FD-348: after the first agent session ends, Overview asks once whether Fabric Dashboards helps. Write a review
+  opens an email to the team; No thanks puts it away. It never shows again and never beside the setup card.
 
 ## 0.8.214 - 2026-11-19
 

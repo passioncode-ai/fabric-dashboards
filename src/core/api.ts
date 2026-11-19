@@ -201,7 +201,7 @@ export interface FabricApi {
   /** Open how a service joins (the building-fabric-services kit) in the browser — a fixed address, never one from a page. */
   openServiceGuide(): Promise<void>;
   /** FD-348: open the support mailbox or the privacy page. */
-  openHelp(kind: 'support' | 'privacy'): Promise<void>;
+  openHelp(kind: 'support' | 'privacy' | 'review'): Promise<void>;
   restartToUpdate(): Promise<void>;
   checkForUpdates(): Promise<void>;
   /** Open the steps of a held release (LC-16 `needsPerson`) — the address comes from the verified feed in the main process, never from a page. */

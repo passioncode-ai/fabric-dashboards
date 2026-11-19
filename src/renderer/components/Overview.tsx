@@ -15,6 +15,7 @@ import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, usePoll, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
 import { firstAction } from '../../core/focus';
+import { RatingAsk } from './RatingAsk';
 
 /** FD-39 SCN-058: the setup the person's coding agent runs. The card shows what is done — read every few
  *  seconds while it is on screen — and opens the Setup console; the app runs none of the steps itself. */
@@ -226,6 +227,8 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
     <>
       <StatusStrip status={status} products={products} attention={attention.length} urgent={attention.some(urgent)} goSpend={goSpend}
         goAttention={() => { const el = document.getElementById('attention-title'); el?.scrollIntoView({ block: 'start' }); el?.focus(); }} />
+      {/* FD-348 (SCN-122): the one-time review ask, under the strip and above what needs action. */}
+      <RatingAsk agents={services.length} setupShown={Boolean(setupCard)} />
       {/* VIS-12: what to act on now comes first; the news of the last visit follows it. */}
       {attention.length > 0 && (
         <section className="attention" aria-labelledby="attention-title">

@@ -23,3 +23,26 @@ test('FD-348: Help opens only its two fixed addresses: the support mailbox with 
   assert.equal(helpUrl('privacy', '0.8.215'), 'https://passioncode.ai/privacy/');
   for (const other of ['terms', 'https://evil.example', '', null, { kind: 'support' }]) assert.equal(helpUrl(other, '1'), null, String(other));
 });
+
+test('FD-348 (SCN-122): the review ask is due after the first agent session ends, shows once and never beside the setup card', async () => {
+  const { helpUrl, ratingDueAfter, showRatingAsk } = await import('../src/core/help');
+  const { merge, rendererSettingsPatch } = await import('../src/core/settings');
+  assert.equal(helpUrl('review', '0.8.216'), 'mailto:support@passioncode.ai?subject=Fabric%20Dashboards%200.8.216%3A%20review');
+  const fresh = { ratingDue: false, ratingAsked: false };
+  assert.equal(ratingDueAfter('alpha.default', fresh), true, 'an agent session ending');
+  assert.equal(ratingDueAfter('fabric-dashboards.setup', fresh), false, 'the Setup console is not the aha moment');
+  assert.equal(ratingDueAfter('alpha.default', { ratingDue: true, ratingAsked: false }), false, 'written once');
+  assert.equal(ratingDueAfter('alpha.default', { ratingDue: false, ratingAsked: true }), false, 'answered for good');
+  const due = { ratingDue: true, ratingAsked: false };
+  assert.equal(showRatingAsk(due, 1, false), true);
+  assert.equal(showRatingAsk(fresh, 1, false), false, 'not before a session ended');
+  assert.equal(showRatingAsk(due, 0, false), false, 'not with no agent listed');
+  assert.equal(showRatingAsk(due, 1, true), false, 'not beside the setup card');
+  assert.equal(showRatingAsk({ ratingDue: true, ratingAsked: true }, 1, false), false, 'never again once answered');
+  // The page answers the ask but never marks it due; an earlier settings file reads as neither.
+  assert.deepEqual(rendererSettingsPatch({ ratingDue: true, ratingAsked: true }), { ratingAsked: true });
+  const old = merge({});
+  assert.equal(old.ratingDue, false);
+  assert.equal(old.ratingAsked, false);
+  assert.equal(merge({ ratingDue: 'yes' as unknown as boolean }).ratingDue, false);
+});

@@ -127,6 +127,7 @@
 | SCN-119 | Start a new dashboard from the agent list | console | P-01 | ST-019, ST-022 | implemented | 2026-11-17 |
 | SCN-120 | See an agent's own health report on its Health tab | health | P-01 | ST-004 | implemented | 2026-11-17 |
 | SCN-121 | Register an organization's agents from a link | navigation | P-01 | ST-016 | implemented | 2026-11-18 |
+| SCN-122 | Asked once for a review after the first finished session | overview | P-01 | ST-010 | implemented | 2026-11-19 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2750,4 +2751,28 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "The agents of {host} were not added" / «Агенты {host} не добавлены»
 - **Status:** implemented (2026-11-18, 0.8.195: `test/register.test.ts` *FD-193*; step 2a 2026-11-19, 0.8.208: *FD-331 (STU-148)*; copy check reports `8eb34470` to `d0686b68`, 22 strings, and `c1df4c52`, `849f59a2` for the title as worded now, no findings)
 - **Coverage:** src/core/register.ts, src/core/deeplink.ts (register), src/electron/register-flow.ts, src/electron/main.ts (handleLink)
+- **Product:** unobserved
+
+### SCN-122: Asked once for a review after the first finished session
+- **Persona:** P-01
+- **Feature:** overview
+- **Traces:** ST-010; FD-348 (the operator's instruction of 2026-11-19 relayed by Fabric, board `b1df37b0`: rating is asked at activation and "aha" moments from the first day; Fabric's answer `e9de22da`: no store, so the review goes to the support mailbox)
+- **Entry point:** Overview, after an agent's console session has ended
+- **Preconditions:** at least one agent is listed (activation), and one of its console sessions has ended on this install (the "aha" moment); the ask has not been answered
+- **Steps:**
+  1. An agent's console session ends -> the main process marks the review due once (`ratingDue`, `src/electron/console.ts`); the Setup console's own end does not count
+  2. The person opens Overview -> under the status strip a card asks "Is Fabric Dashboards helping?" with "Your first agent session has ended. A few lines on what works and what to improve go straight to the team." and two buttons, Write a review and No thanks
+  3. The person chooses Write a review -> a new email to support@passioncode.ai opens in their mail app, its subject naming the app, its version and "review"; the card goes and never shows again
+- **Expected result:** the person is asked for a review once, at a moment the app has done something for them, and the answer reaches the team without a store
+- **Alt paths:** No thanks -> the card goes and never shows again; the setup card is on screen -> the review card waits until it is gone; no agent is listed -> nothing shows; a settings file from an earlier version -> read as not due and not asked
+- **UI elements:** the card, Write a review, No thanks
+- **States covered:** success
+- **Errors & recovery:** the mail app does not open -> nothing is shown and the card is still answered (support stays in Settings, Help, SCN-024); the settings cannot be written -> the card stays and the next answer tries again
+- **Copy:**
+  - "Is Fabric Dashboards helping?" / «Fabric Dashboards помогает в работе?»
+  - "Your first agent session has ended. A few lines on what works and what to improve go straight to the team." / «Первая сессия агента завершена. Напишите пару строк о том, что работает и что улучшить: письмо придёт прямо команде.»
+  - "Write a review" / «Написать отзыв»
+  - "No thanks" / «Нет, спасибо»
+- **Status:** implemented (2026-11-19, 0.8.215: `test/parity.test.ts` *FD-348 (SCN-122)*; copy check reports `afdbabdf`, `84f72055`, `87d0cc10`, `eea66076` (en) and `a2cbb147`, `1fa1e918`, `e9e984c2`, `1fa105dc` (ru), no findings but a suggestion on the Latin product name in the Russian title)
+- **Coverage:** src/core/help.ts (helpUrl review, ratingDueAfter, showRatingAsk), src/electron/console.ts, src/renderer/components/RatingAsk.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts
 - **Product:** unobserved
