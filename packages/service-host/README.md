@@ -45,7 +45,7 @@ repository root). Node 20 or later.
 `SERVICE_STATES` (`invalid`, `stopped`, `conflict`, `foreign-user`, `foreign`, `duplicate`, `down`, `starting`,
 `stopping`, `degraded`, `ready`), `Reason` and `REASON_CODES` — every code `deriveState` can
 return, so a host's message catalogue can be checked against it — `Busy`, `LaunchdStatus`,
-`ClaimConflict`, `ID_PATTERN`, `INSTANCE_PATTERN`. `WellKnown.surfaces` carries `mcp.capabilities` and `usage` (DEC-0021). The Fabric Agent Contract's
+`ClaimConflict`, `ID_PATTERN`, `INSTANCE_PATTERN`. `WellKnown.surfaces` carries `mcp.capabilities`, `mcp.compact` (a compact surface's `search` and `execute` doors, DEC-0180 CM-1, 0.11.2) and `usage` (DEC-0021). The Fabric Agent Contract's
 `schemas/service-*.schema.json` stay normative; these shapes follow them.
 
 ## Embedded dashboard profile

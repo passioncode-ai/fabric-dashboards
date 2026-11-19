@@ -44,11 +44,14 @@ export function planLimitChange(limits: readonly UsageLimit[], c: LimitChangeInp
 }
 
 /** Where an agent takes `spend.limits.set`: its MCP surface on this machine, when it lists the capability. */
-export function limitDoorOf(s: { wellKnown?: { surfaces: { mcp?: { transport?: string; path: string; capabilities?: string[] } } } | null; descriptor?: { origin: string } | null }): { origin: string; path: string } | null {
+export function limitDoorOf(s: { wellKnown?: { surfaces: { mcp?: { transport?: string; path: string; capabilities?: string[]; compact?: { execute?: string } } } } | null; descriptor?: { origin: string } | null }): { origin: string; path: string; execute?: string } | null {
   const mcp = s.wellKnown?.surfaces.mcp;
   const origin = s.descriptor?.origin ?? '';
   if (!mcp || mcp.transport !== 'streamable-http' || !/^http:\/\/127\.0\.0\.1:\d+$/.test(origin) || !/^\/(?!\/)/.test(mcp.path)) return null;
-  return (mcp.capabilities ?? []).includes(SPEND_LIMITS_SET) ? { origin, path: mcp.path } : null;
+  if (!(mcp.capabilities ?? []).includes(SPEND_LIMITS_SET)) return null;
+  // FD-343 (DEC-0180 CM-1): a compact surface names its execute door; the call goes through it by that name.
+  const execute = typeof mcp.compact?.execute === 'string' ? mcp.compact.execute : undefined;
+  return execute ? { origin, path: mcp.path, execute } : { origin, path: mcp.path };
 }
 
 /** The change the agent recorded (DEC-0183 SL-2 answer `{change, repeated?}`), from a tool result, or null. */

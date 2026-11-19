@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.207 - 2026-11-19
+
+### Fixed
+- FD-343: Change on a spending limit reaches an agent whose two MCP doors carry its domain's name
+  (`assessment.execute`), or the execute door its compact surface declares (contract DEC-0180). Before, only a tool
+  named exactly `execute` was found, and the change was refused as having no door.
+
 ## 0.8.206 - 2026-11-19
 
 ### Fixed
