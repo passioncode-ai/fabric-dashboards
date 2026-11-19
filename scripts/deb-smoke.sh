@@ -8,8 +8,16 @@
 set -euo pipefail
 deb=$1
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq "$deb" xvfb xauth > /tmp/apt.log || { tail -30 /tmp/apt.log; exit 1; }
+# Release 0.8.214 (run 44519727717, 2026-11-19): the container's archive.ubuntu.com did not answer from the runner and
+# apt waited until the job's 75 minutes. The runner's own Azure mirror is used when it answers, and apt gives up on a
+# mirror after bounded retries instead of hanging.
+src=/etc/apt/sources.list.d/ubuntu.sources
+if [ -f "$src" ] && timeout 10 bash -c 'exec 3<>/dev/tcp/azure.archive.ubuntu.com/80' 2>/dev/null; then
+  sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g; s|http://security.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' "$src"
+fi
+apt_opts=(-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+timeout 600 apt-get "${apt_opts[@]}" update -qq
+timeout 900 apt-get "${apt_opts[@]}" install -y -qq "$deb" xvfb xauth > /tmp/apt.log || { tail -30 /tmp/apt.log; exit 1; }
 app=/opt/fabric-dashboards
 [ -x "$app/fabric-dashboards" ] || { echo "::error::the .deb did not install $app/fabric-dashboards"; exit 1; }
 missing=$(ldd "$app/fabric-dashboards" | grep 'not found' || true)
