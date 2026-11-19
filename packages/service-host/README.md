@@ -364,7 +364,9 @@ pages let a person take, and the agent tool that takes it, in its well-known doc
 `human` (a step only the person takes, named by `humanStep`). `actionsOf(wellKnown)` returns `{declared, reported,
 actions, errors, findings}`: an invalid value declares nothing, is `reported` and lists every reason; `findings` are
 FAC-SEM-142's, each with its `instancePath`: the invalid value, an id named twice, a `humanStep` that disagrees with
-`gate`, and a `tool` that a present `surfaces.mcp.capabilities` does not list (a button without an agent twin). It is a
+`gate`, a `tool` that a present `surfaces.mcp.capabilities` does not list (a button without an agent twin), and a `tool`
+that names a declared compact surface's search or execute door instead of the operation behind it (DEC-0184 AO-1,
+0.11.3). It is a
 port of the contract's `actionsView` and `actionsExtensionRules`, run on the contract's actions fixtures and the
 `declarations` of its `vectors/actions.json` (`test/fixtures/contract/*actions*`, at `52c7d798`).
 
