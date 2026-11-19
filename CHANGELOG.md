@@ -8,6 +8,11 @@
 - FD-348: after the first agent session ends, Overview asks once whether Fabric Dashboards helps. Write a review
   opens an email to the team; No thanks puts it away. It never shows again and never beside the setup card.
 
+### Fixed
+- FD-334: a coding agent opened for an agent that runs on another machine starts knowing it. Its context and, for Fix
+  with agent or a task, the task are written as one file on that machine, and the first prompt names it. Before, such a
+  session started with nothing, and Fix with agent lost its task.
+
 ## 0.8.214 - 2026-11-19
 
 ### Added

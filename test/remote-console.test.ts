@@ -1,12 +1,13 @@
 // FD-199 (SCN-103): an agent the placement record puts on another machine opens its console there, over the ssh route
 // of the port forward that brings it here. The route parsing is pure; the start path runs ConsoleHost with stubs.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
 import { remoteRefusal } from '../src/core/remote-words';
-import { cloneArgv, cloneOffer, accessOf, accessProbeArgv, folderOf, folderProbeArgv, forwardOf, remoteFolderCandidates, launchJobOf, placeCommand, remoteCommandArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
+import { briefPathOf, briefWriteArgv, BRIEF_MAX, cloneArgv, cloneOffer, accessOf, accessProbeArgv, folderOf, folderProbeArgv, forwardOf, remoteFolderCandidates, launchJobOf, placeCommand, remoteCommandArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
 import { parseRequest } from '../src/core/console-channel';
 import { SettingsStore } from '../src/core/settings';
 import { failText } from '../src/renderer/components/Sessions';
@@ -73,7 +74,8 @@ test('FD-199: launchd jobs are read from XML property lists; a binary one is ski
   assert.deepEqual(readLaunchJobs(path.join(dir, 'absent')), []);
 });
 
-function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: LaunchJob[]; folderHere: boolean; access?: { code: number | null; stdout: string; stderr: string }; there?: (candidates: string) => { code: number | null; stdout: string; stderr: string }; repository?: string }) {
+function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: LaunchJob[]; folderHere: boolean; access?: { code: number | null; stdout: string; stderr: string }; there?: (candidates: string) => { code: number | null; stdout: string; stderr: string }; repository?: string;
+  /** FD-334: the snapshot the brief is built from, and the other machine's answer to writing it. */ snapshot?: () => unknown; brief?: (script: string) => { code: number | null; stdout: string; stderr: string } }) {
   const base = tmp('fd-199-');
   const bin = path.join(base, 'bin');
   const home = path.join(base, 'home');
@@ -86,10 +88,11 @@ function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: L
   const machineAsked: string[] = [];
   const host = new ConsoleHost({
     settings: { get: () => settings, update: (p: Record<string, unknown>) => { settings = { ...settings, ...p }; } } as never,
-    snapshot: () => ({ descriptor: { origin: 'http://127.0.0.1:47861', source: { repository: o.repository } } }) as never, window: () => null, visible: () => false, log: () => {},
+    snapshot: () => (o.snapshot ? o.snapshot() : { descriptor: { origin: 'http://127.0.0.1:47861', source: { repository: o.repository } } }) as never, window: () => null, visible: () => false, log: () => {},
     testDirs: [bin], scriptsDir: path.join(base, 'scripts'), home,
     run: async (_cmd: string, args: string[]) => (args.at(-1) === 'echo fabric-edit-ok' ? o.access ?? { code: 0, stdout: 'fabric-edit-ok\n', stderr: '' }
       // FD-203: the other machine answers which folder it has; by default the first one asked about.
+      : args.at(-1)!.startsWith('exec /bin/sh -c ') ? (o.brief ?? (() => ({ code: 1, stdout: '', stderr: '' })))(args.at(-1)!)
       : args.at(-1)!.startsWith('/bin/sh -c ') ? (o.there ?? (() => ({ code: 0, stdout: `fabric-dir:${remoteHome}/DATA/agent\n`, stderr: '' })))(args.at(-1)!)
       : { code: 1, stdout: '', stderr: '' }),
     spawn: (file, args, opts) => { spawned.push({ file, args, cwd: opts.cwd }); return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
@@ -347,3 +350,66 @@ test('FD-334: Clone and open clones through Switchboard and makes the clone the 
     }
   }
 });
+
+// #region FD-334 remote brief
+const FULL = () => ({
+  key: 'example-agent.default', descriptorPath: '/x/example-agent.default.json',
+  descriptor: { protocol: 'fabric-service/0.1', id: 'example-agent', instance: 'default', name: 'Example', origin: 'http://127.0.0.1:47861', source: { repository: 'https://github.com/example/agent' } },
+  problems: [], state: 'down', reasons: [{ code: 'reason.down' }], wellKnown: null, launchd: null,
+  firstUnansweredAt: null, lastAnswerAt: null, busy: null, lastAction: null, latestEvent: null, feedError: null,
+});
+const BRIEF_AT = `${remoteHome}/.fabric-dashboards/consoles/example-agent.default/brief.md`;
+
+test('FD-334 (P3): an agent placed on another machine starts there with its brief written there and named in the first prompt', POSIX, async () => {
+  let written = '';
+  const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: false, snapshot: FULL, brief: (script) => { written = script; return { code: 0, stdout: `fabric-brief:${BRIEF_AT}\n`, stderr: '' }; } });
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }, { kind: 'fix' }), { ok: true });
+  assert.match(written, /cat > "\$d\/brief\.md" <</);
+  assert.match(written, /context from Fabric Dashboards/);
+  assert.match(written, /not reachable from here/, 'the brief says the MCP of this computer is not there');
+  assert.match(written, /# Task: /, 'the Fix task travels with it');
+  const line = r.spawned[0]!.args.at(-1)!;
+  assert.match(line, /--append-system-prompt/);
+  assert.ok(line.includes(BRIEF_AT), 'the runtime is pointed at the file on that machine');
+  assert.match(line, /Do the task in /);
+});
+
+test('FD-334 (P3): a brief that cannot be written there starts the session without it, with permission prompts on', POSIX, async () => {
+  const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: false, snapshot: FULL, brief: () => ({ code: 255, stdout: '', stderr: 'broken pipe' }) });
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: true });
+  const line = r.spawned[0]!.args.at(-1)!;
+  assert.ok(!line.includes('--append-system-prompt'));
+  assert.ok(!line.includes('--dangerously-skip-permissions'), 'held: the person decides each step');
+});
+
+test('FD-334: the brief write makes the folder 0700, writes the text whole and prints the path; an end line inside the text cannot end it', POSIX, () => {
+  const route = forwardOf(TUNNEL)!.route;
+  const text = "line one\nFABRIC_BRIEF_fixed\nit's `quoted` $HOME and \\ back\n";
+  const argv = briefWriteArgv({ route, key: 'example-agent.default', text, end: 'FABRIC_BRIEF_fixed' });
+  assert.deepEqual(argv.slice(0, 7), ['/usr/bin/ssh', '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15']);
+  assert.equal(argv.at(-2), 'me@192.0.2.9');
+  const script = argv.at(-1)!;
+  assert.match(script, /^exec \/bin\/sh -c '/);
+  // Run the script the other machine runs, under a home of its own.
+  const home = tmp('fd-334-home-');
+  const inner = script.slice('exec /bin/sh -c '.length);
+  const out = execFileSync('/bin/sh', ['-c', `exec /bin/sh -c ${inner}`], { env: { ...process.env, HOME: home }, encoding: 'utf8' }) as string;
+  const file = briefPathOf({ code: 0, stdout: out });
+  assert.equal(file, path.join(home, '.fabric-dashboards/consoles/example-agent.default/brief.md'));
+  assert.equal(fs.readFileSync(file!, 'utf8'), text);
+  assert.equal(fs.statSync(path.dirname(file!)).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(file!).mode & 0o777, 0o600);
+});
+
+test('FD-334: a long brief is cut, a key that is not an agent key is refused, and only a printed brief path counts', () => {
+  const route = forwardOf(TUNNEL)!.route;
+  const long = briefWriteArgv({ route, key: 'example-agent.default', text: 'x'.repeat(BRIEF_MAX + 5000) }).at(-1)!;
+  assert.ok(long.length < BRIEF_MAX + 2000);
+  assert.match(long, /\(cut: /);
+  assert.throws(() => briefWriteArgv({ route, key: '../etc"; rm', text: 'x' }));
+  assert.equal(briefPathOf({ code: 0, stdout: 'motd\nfabric-brief:/srv/them/.fabric-dashboards/consoles/a.b/brief.md\n' }), '/srv/them/.fabric-dashboards/consoles/a.b/brief.md');
+  assert.equal(briefPathOf({ code: 71, stdout: 'fabric-brief:/srv/them/x/brief.md\n' }), null);
+  assert.equal(briefPathOf({ code: 0, stdout: 'fabric-brief:relative/brief.md\n' }), null);
+  assert.equal(briefPathOf({ code: 0, stdout: 'nothing\n' }), null);
+});
+// #endregion FD-334 remote brief

@@ -124,12 +124,15 @@ function stringsOf(value: unknown, out: string[] = [], depth = 0): string[] {
 const line = (label: string, value: string | null) => (value ? `- **${label}:** ${value}` : null);
 
 /** `context.md`: the agent's whole picture, readable by a person too. */
-export function contextMarkdown(c: HandoffContext, generatedAt: string): string {
+export function contextMarkdown(c: HandoffContext, generatedAt: string, o: { remote?: string } = {}): string {
   const src = `service:${c.key}`;
   const out: (string | null)[] = [
     `# ${literal(c.name, 120)} (${literal(c.key, 200)}): context from Fabric Dashboards`,
     '',
-    `Written ${generatedAt}. Read it fresh any time with the \`fabric-dashboards\` MCP tool \`service_context\` (key ${literal(c.key, 200)}).`,
+    // FD-334 (P3): a session on another machine cannot reach this app's MCP server; the text says what it is instead.
+    o.remote
+      ? `Written ${generatedAt} by Fabric Dashboards on the person's computer, for this session on ${literal(o.remote, 200)}. The \`fabric-dashboards\` MCP tools are not reachable from here: this is what that computer knew when the session started.`
+      : `Written ${generatedAt}. Read it fresh any time with the \`fabric-dashboards\` MCP tool \`service_context\` (key ${literal(c.key, 200)}).`,
     '',
     // FD-234: what the service wrote is fenced; the agent is told once what the fence means.
     UNTRUSTED_NOTE,
@@ -158,7 +161,7 @@ export function contextMarkdown(c: HandoffContext, generatedAt: string): string 
     fence(src, ['```json', JSON.stringify(c.descriptor, null, 2), '```'].join('\n'), c.fenceId),
     '',
     '## What you can do from here',
-    '- `fabric-dashboards` MCP: `service_context`, `service_status`, `activity`, `doctor`, `update`, `control` (start/stop/restart), `link`, `open`.',
+    o.remote ? null : '- `fabric-dashboards` MCP: `service_context`, `service_status`, `activity`, `doctor`, `update`, `control` (start/stop/restart), `link`, `open`.',
     '- The person sees the result in Fabric Dashboards: its state, events and dashboard update as you work.',
     '',
   ];
@@ -385,3 +388,38 @@ export function prepareHandoff(o: {
   return { handoff: h, env, signals: ctx.signals, files: { ...files, manifest } };
 }
 // #endregion agent-handoff
+
+// #region remote-brief — docs: docs/ux/scenarios.md#scn-103-edit-an-agent-on-the-machine-it-runs-on
+// FD-334 (plan 2026-11-18, P3): a session on the machine an agent is placed on cannot read the pack written here, nor
+// reach this app's MCP server. It gets the same context and task as one text, written to that machine before the start
+// (`briefWriteArgv`, `src/core/remote-console.ts`), and a short first prompt that names the file there.
+
+/** The context and the task, if any, of a session on another machine: the text written there, read for instructions. */
+export function remoteBrief(o: {
+  snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; machine: string;
+  task?: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent'; to?: 'board' }; now?: () => Date;
+}): { text: string; signals: string[]; task: boolean } {
+  const now = (o.now ?? (() => new Date()))().toISOString();
+  const read = handoffContext(o.snapshot, o.activity, o.folder);
+  const ctx = { ...read, signals: [...new Set([...read.signals, ...injectionSignals([taskText(o.task)])])], asks: askArgs(o.runtimeId).length > 0, skips: bypassArgs(o.runtimeId).length > 0 };
+  const job = o.task ? jobOf(ctx, o.task) : null;
+  const text = `${contextMarkdown(ctx, now, { remote: o.machine })}${job ? `\n${taskMarkdown(job)}` : ''}`;
+  return { text, signals: ctx.signals, task: Boolean(job) };
+}
+
+/** The arguments that point a runtime at the brief written on the other machine, as `handoffArgs` does with a pack. */
+export function remoteHandoffArgs(runtimeId: string, file: string, task: boolean): { before: string[]; after: string[] } {
+  const at = literal(file, 4096);
+  const prompt = task ? `Read ${at} and do the task it describes.` : `Read ${at}: it is what Fabric Dashboards knows about the agent you work on.`;
+  switch (runtimeId) {
+    case 'claude-code':
+      return { before: ['--append-system-prompt', `Read ${at} before anything else: it is what Fabric Dashboards knows about the agent you work on${task ? ', and your task' : ''}.`], after: task ? [taskPrompt(file)] : [] };
+    case 'codex':
+      return { before: [], after: [prompt] };
+    case 'gemini-cli':
+      return { before: [], after: ['-i', prompt] };
+    default:
+      return { before: [], after: [] };
+  }
+}
+// #endregion remote-brief
