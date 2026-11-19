@@ -17,8 +17,12 @@ test; both fold into 0.8.108).
   first product's list is read on this Mac (the media service's 0.3.151, the copy service's list by 2026-11-24, thread
   `747c6bb0`).
 - Waits: as under 0.8.217 (thread `7f9d0a09`, thread `747c6bb0`) and 0.8.215.
-- Next task: read back the `v0.8.218` release run (16 assets); then the first product's list on this Mac (SCN-123),
-  then the Access page across agents.
+- Merged: PR #741 (`c460fd38`), the gate's result in its body (1583 tests, 1573 pass, 0 fail, 10 skipped).
+- Not tagged: an unattended run asked Fabric to publish (`fabric_effect_request`, publication, target `v0.8.218` on
+  `c460fd38`, 2026-11-19 19:3x UTC); Fabric refused and asked the operator. A session the operator is in, or a run
+  after he allows it, pushes the annotated tag `v0.8.218` on `c460fd38`.
+- Next task: tag `v0.8.218` once allowed and read back its run (16 assets); then the first product's list on this Mac
+  (SCN-123), then the Access page across agents.
 
 ## 0.8.217: the sessions screen tells who pays and what each waits for (2026-11-19)
 
