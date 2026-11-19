@@ -617,16 +617,16 @@ function newServer(opts: { answers?: boolean; version?: string; staleOnCall?: bo
   return { child, read };
 }
 
-function session(handover: () => ChildProcess | null, staleFrom = 2) {
+function session(handover: () => ChildProcess | null, staleFrom = 2, wait: { waitMs?: number; retryMs?: number } = {}) {
   let checks = 0;
   const watch = { runningVersion: '1.0.0', check: () => { checks += 1; return { stale: checks >= staleFrom, running: '1.0.0', installed: '1.1.0' }; } } as unknown as StaleWatch;
   const input = new PassThrough();
   const output = new PassThrough();
-  const lines: { id: unknown; result?: { isError?: boolean; answeredBy?: string; structuredContent?: { stale?: boolean }; serverInfo?: unknown } }[] = [];
+  const lines: { id: unknown; result?: { isError?: boolean; answeredBy?: string; structuredContent?: { stale?: boolean; updating?: boolean; retry_after_s?: number }; serverInfo?: unknown } }[] = [];
   let buffer = '';
   output.on('data', (chunk) => { buffer += String(chunk); let i: number; while ((i = buffer.indexOf('\n')) >= 0) { lines.push(JSON.parse(buffer.slice(0, i))); buffer = buffer.slice(i + 1); } });
   let exited: number | null = null;
-  serve(world().deps, input, output, { exit: (code) => { exited = code; }, watch, signals: false, handover });
+  serve(world().deps, input, output, { exit: (code) => { exited = code; }, watch, signals: false, handover, ...wait });
   const send = (m: unknown) => input.write(`${JSON.stringify(m)}\n`);
   const until = async (ok: () => boolean) => { const end = Date.now() + 5000; while (!ok()) { assert.ok(Date.now() < end, 'in time'); await new Promise((r) => setTimeout(r, 5)); } };
   return { input, lines, send, until, exited: () => exited };
@@ -740,6 +740,57 @@ test('FD-150: a handed server that can be started again leaves its call unanswer
     assert.equal(out.includes('"id":7'), !rehand, rehand ? 'the relay sends it again' : 'answered stale, as before');
   }
   assert.equal(handedEnv({})[REHAND_ENV], '1', 'every hand-over marks the copy it starts');
+});
+
+// FD-350: 16 sessions on the operator's Mac lost this server for good on 2026-11-19, during five automatic installs in a
+// row at load around 100: one failed hand-over (the bundle not in place yet, or a copy too slow to answer) ended them.
+test('FD-350: while no installed copy can start yet, calls are told "updating" and the hand-over is tried again until one takes the session', async () => {
+  const fresh = newServer({ version: '1.2.0' });
+  let tries = 0;
+  const s = session(() => { tries += 1; return tries < 3 ? null : fresh.child; }, 1, { waitMs: 5_000, retryMs: 20 });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
+  await s.until(() => s.lines.some((l) => l.id === 2));
+  const told = s.lines.find((l) => l.id === 2)!.result!;
+  assert.equal(told.isError, true);
+  assert.equal(told.structuredContent!.updating, true, 'updating, not stale: the session is kept');
+  assert.equal(told.structuredContent!.stale, undefined);
+  await s.until(() => tries >= 3);
+  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
+  await s.until(() => s.lines.some((l) => l.id === 3));
+  assert.equal(s.lines.find((l) => l.id === 3)!.result!.answeredBy, '1.2.0', 'the copy that took the session answers');
+  assert.equal(s.exited(), null, 'the session goes on');
+});
+
+test('FD-350: a copy that dies before it answers is replaced by the next try, not the end of the session', async () => {
+  const dead = newServer({ answers: false });
+  const fresh = newServer({ version: '1.2.0' });
+  const queue = [dead.child, fresh.child];
+  const s = session(() => {
+    const c = queue.shift() ?? null;
+    if (c === dead.child) setTimeout(() => dead.child.emit('exit', 1, null), 10);
+    return c;
+  }, 1, { waitMs: 5_000, retryMs: 20 });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
+  await s.until(() => s.lines.some((l) => l.id === 2));
+  assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.updating, true);
+  await s.until(() => queue.length === 0);
+  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
+  await s.until(() => s.lines.some((l) => l.id === 3));
+  assert.equal(s.lines.find((l) => l.id === 3)!.result!.answeredBy, '1.2.0');
+  assert.equal(s.exited(), null);
+});
+
+test('FD-350: when no copy takes the session within the window, it leaves as before', async () => {
+  let tries = 0;
+  const s = session(() => { tries += 1; return null; }, 1, { waitMs: 150, retryMs: 20 });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: ex({ name: 'list_services', arguments: {} }) });
+  await s.until(() => s.exited() !== null);
+  assert.equal(s.exited(), 0);
+  assert.ok(tries >= 3, `tried again (${tries})`);
+  assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.updating, true);
 });
 
 test('FD-109: no hand-over without a launcher or before the client initialized; the launcher sits beside app.asar on every system', async () => {

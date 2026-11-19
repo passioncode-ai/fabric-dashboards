@@ -13,7 +13,7 @@ import { setLoopbackConnectionCheck, setLoopbackOwnerCheck, setWindowsAclReader 
 import { linuxConnectionCheck, linuxLoopbackOwnerCheck, loopbackOwnerCheck, macConnectionCheck, windowsLoopbackOwnerCheck } from '../core/loopback-owner';
 import { execRunner } from '../core/launchd';
 import { ACTIONS_META, actionOf, decisionFor, decisionsFile, decisionUsed, recordDecision } from './actions';
-import { launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX, REHAND_WINDOW_MS, startRelay, type Relay } from './handover';
+import { HANDED_ENV, HANDOVER_RETRY_MS, HANDOVER_WAIT_MS, WAIT_ENV, launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX, REHAND_WINDOW_MS, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
 import { appendMcpLog } from './mcp-log';
 import * as tools from './tools';
@@ -274,6 +274,8 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
 /** How often an idle server checks whether an update replaced its bundle (unref'd: never keeps it alive). */
 export const STALE_CHECK_MS = 60_000;
 export const STALE_ACTION = 'Fabric Dashboards was updated. Restart this agent session to load the new version.';
+/** FD-350: what a call is told while its server waits for the installed copy to take the session. */
+export const UPDATING_ACTION = 'Fabric Dashboards is installing an update and this session moves to the new version. Call again in a few seconds.';
 
 /** The watch for the code this process was started from: Info.plist inside the app, else this file. */
 function liveStaleWatch(from = __filename): StaleWatch {
@@ -295,6 +297,10 @@ export interface ServeOptions {
   /** FD-150: this server was handed its session by one that can start the next copy itself (REHAND_ENV); when it goes
    *  stale it exits with REHAND_EXIT, leaving its calls to be sent again, instead of answering stale. */
   rehand?: boolean;
+  /** FD-350: how long a server that hands sessions over keeps trying when a hand-over fails, and how often; 0 gives up at
+   *  once (a checkout, a copy that was handed a session itself). */
+  waitMs?: number;
+  retryMs?: number;
 }
 
 /**
@@ -316,6 +322,13 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
   const note = (text: string) => { process.stderr.write(`${text}\n`); keep?.(text); };
   keep?.(`fabric-dashboards-mcp ${watch?.runningVersion ?? appVersion()}: started${rehand ? ' (a fresh copy for a session handed over before)' : ''}`);
   const rehands: number[] = []; // FD-150: when each fresh copy was started after the first hand-over
+  // FD-350: a failed hand-over is tried again rather than ending the session (the bundle may be mid-install, the new
+  // copy slow to answer under load). Only the first server waits: a handed copy exits REHAND_EXIT to its relay.
+  const envWait = Number(process.env[WAIT_ENV]);
+  const waitMs = options.waitMs ?? (process.env[HANDED_ENV] === '1' || !launcherOf(__filename) ? 0 : Number.isFinite(envWait) && envWait >= 0 ? envWait : HANDOVER_WAIT_MS);
+  const retryMs = options.retryMs ?? HANDOVER_RETRY_MS;
+  let waitingSince: number | null = null;
+  let retry: ReturnType<typeof setTimeout> | null = null;
   let init: unknown = null; // the client's own initialize params, repeated to the server that takes the session
   let relay: Relay | null = null;
   let inFlight = 0;
@@ -326,6 +339,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
     if (leaving) return;
     leaving = true;
     clearInterval(timer);
+    if (retry) { clearTimeout(retry); retry = null; }
     const said = `fabric-dashboards-mcp ${watch?.runningVersion ?? appVersion()}: leaving (${why})`;
     process.stderr.write(`${said}\n`);
     keep?.(`${said}, exit ${code}`);
@@ -348,6 +362,41 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
     const details = { stale: true, running_version: s.running, installed_version: s.installed, action: STALE_ACTION };
     return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }], isError: true, structuredContent: details } };
   };
+  // #region mcp-wait — docs: AGENTS.md#lifecycle
+  const updatingAnswer = (id: unknown, s: { running: string; installed: string | null }) => {
+    const details = { updating: true, running_version: s.running, installed_version: s.installed, retry_after_s: Math.max(1, Math.ceil(retryMs / 1000)), action: UPDATING_ACTION };
+    return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }], isError: true, structuredContent: details } };
+  };
+  /** FD-350: the hand-over failed; keep the session, answer these calls "updating" and try again on a timer. False when
+   *  this server does not wait (waitMs 0) or has waited its whole window: then it gives up as before. */
+  const waitForCopy = (s: { running: string; installed: string | null }, why: string, lines: string[]): boolean => {
+    if (waitMs <= 0 || leaving) return false;
+    if (waitingSince === null) {
+      waitingSince = Date.now();
+      note(`fabric-dashboards-mcp ${s.running}: no copy took the session (${why}); trying again every ${Math.round(retryMs / 1000)} s for ${Math.round(waitMs / 60_000)} min`);
+    } else if (Date.now() - waitingSince >= waitMs) return false;
+    for (const q of lines) {
+      let m: Message | null = null;
+      try { m = JSON.parse(q) as Message; } catch { /* not an answerable call */ }
+      if (m && m.id !== undefined && m.id !== null && m.method !== undefined) write(updatingAnswer(m.id, s));
+    }
+    if (!retry) {
+      retry = setTimeout(tryAgain, retryMs);
+      retry.unref?.();
+    }
+    return true;
+  };
+  const tryAgain = () => {
+    retry = null;
+    if (leaving || relay || waitingSince === null) return;
+    const s = watch?.check() ?? { stale: true, running: appVersion(), installed: null };
+    const since = waitingSince;
+    if (handOver(s)) { note(`fabric-dashboards-mcp ${s.running}: an installed copy took the session after ${Math.round((Date.now() - since) / 1000)} s`); waitingSince = null; return; }
+    if (Date.now() - since >= waitMs) { leave(`stale: no installed copy took the session in ${Math.round(waitMs / 60_000)} min`); return; }
+    retry = setTimeout(tryAgain, retryMs);
+    retry.unref?.();
+  };
+  // #endregion mcp-wait
   /** FD-109 (4): give the session to the installed copy's server. False when nothing can take it. `carry` are calls a
    *  previous copy took and did not answer (FD-150); they go to this one after its initialize. */
   const handOver = (s: { running: string; installed: string | null }, carry: string[] = []): boolean => {
@@ -370,9 +419,10 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
       child, init, output,
       failed: (why, queued) => {
         note(`fabric-dashboards-mcp ${s.running}: hand-over failed (${why})`);
-        answerStale(queued);
         relay = null;
         leaving = false;
+        if (waitForCopy(s, why, queued)) return; // FD-350
+        answerStale(queued);
         leave(`stale, and the hand-over failed: ${why}`);
       },
       done: (code) => { keep?.(`fabric-dashboards-mcp ${s.running}: the relay is over, exit ${code}`); void killOwned(300).finally(() => exit(code)); },
@@ -385,9 +435,12 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
         while (rehands.length && now - rehands[0]! > REHAND_WINDOW_MS) rehands.shift();
         rehands.push(now);
         const next = watch?.check() ?? s;
-        if (rehands.length > REHAND_MAX || !handOver(next, pending)) {
+        if (rehands.length > REHAND_MAX) {
           answerStale(pending);
-          leave(rehands.length > REHAND_MAX ? 'stale: the installed copy kept going stale' : 'stale, and no copy took the session again');
+          leave('stale: the installed copy kept going stale');
+        } else if (!handOver(next, pending) && !waitForCopy(next, 'no copy took the session again', pending)) { // FD-350
+          answerStale(pending);
+          leave('stale, and no copy took the session again');
         }
       },
       // #endregion mcp-rehand
@@ -398,7 +451,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
   const leaveIfStaleAndIdle = () => {
     if (inFlight !== 0 || relay) return;
     const s = watch?.check();
-    if (s?.stale && !handOver(s)) leave('stale: an update replaced the bundle', rehand ? REHAND_EXIT : 0);
+    if (s?.stale && !handOver(s) && !waitForCopy(s, 'no installed copy to start yet', [])) leave('stale: an update replaced the bundle', rehand ? REHAND_EXIT : 0);
   };
   const timer = setInterval(leaveIfStaleAndIdle, STALE_CHECK_MS);
   timer.unref?.();
@@ -424,6 +477,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
       if (s.stale) {
         if (handOver(s)) { relay!.send(line); return; } // the new version answers this call
         if (rehand) { leave(`stale: running ${s.running}, the relay starts ${s.installed ?? 'the installed copy'}`, REHAND_EXIT); return; } // FD-150: sent again there
+        if (waitForCopy(s, 'no installed copy to start yet', [line])) return; // FD-350: answered "updating", tried again
         write(staleAnswer(message.id, s), () => { if (inFlight === 0) leave(`stale: running ${s.running}, installed ${s.installed ?? 'unknown'}`); });
         return;
       }
@@ -438,7 +492,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
         inFlight -= 1;
         if (leaving || relay || inFlight !== 0 || message.method !== 'tools/call') return;
         const s = watch?.check();
-        if (s?.stale && !handOver(s)) leave('stale', rehand ? REHAND_EXIT : 0);
+        if (s?.stale && !handOver(s) && !waitForCopy(s, 'no installed copy to start yet', [])) leave('stale', rehand ? REHAND_EXIT : 0);
       });
   });
   rl.on('close', () => (relay ? relay.end() : leave('stdin closed')));
