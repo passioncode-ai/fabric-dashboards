@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.215 - 2026-11-19
+
+### Added
+- FD-348: Settings has a Help group. Write to support opens an email to PassionCode support that already names this
+  app and its version; Privacy policy opens PassionCode's privacy page.
+
 ## 0.8.214 - 2026-11-19
 
 ### Added

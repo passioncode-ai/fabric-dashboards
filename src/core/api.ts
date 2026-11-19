@@ -200,6 +200,8 @@ export interface FabricApi {
   windowZoom(): Promise<void>;
   /** Open how a service joins (the building-fabric-services kit) in the browser — a fixed address, never one from a page. */
   openServiceGuide(): Promise<void>;
+  /** FD-348: open the support mailbox or the privacy page. */
+  openHelp(kind: 'support' | 'privacy'): Promise<void>;
   restartToUpdate(): Promise<void>;
   checkForUpdates(): Promise<void>;
   /** Open the steps of a held release (LC-16 `needsPerson`) — the address comes from the verified feed in the main process, never from a page. */
@@ -327,6 +329,8 @@ export const CHANNELS = {
   rescan: 'fd:rescan',
   windowZoom: 'fd:window-zoom',
   serviceGuide: 'fd:service-guide',
+  /** FD-348: Settings → Help: the support mailbox or the privacy page, each fixed in the main process. */
+  openHelp: 'fd:open-help',
   updateRestart: 'fd:update-restart',
   updateCheck: 'fd:update-check',
   updateSteps: 'fd:update-steps',

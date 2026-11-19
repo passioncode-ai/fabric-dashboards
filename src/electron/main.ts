@@ -73,6 +73,7 @@ import { FABRIC_GET_URL, fabricPress, fabricPresentFrom } from '../core/fabric-b
 import { parseTestRemote, setTestRemote } from '../core/testhooks';
 import { OpsDigester } from '../core/ops-digest';
 import { titleBarDoubleClick } from '../core/layout';
+import { helpUrl } from '../core/help';
 
 app.enableSandbox();
 app.setName('Fabric Dashboards');
@@ -1127,6 +1128,8 @@ if (!app.requestSingleInstanceLock()) {
       titleBarDoubleClick(window, process.platform === 'darwin' ? systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string') : undefined);
     });
     ipcMain.handle(CHANNELS.serviceGuide, () => shell.openExternal(SERVICE_GUIDE));
+    // FD-348: only the two fixed Help addresses open; anything else the page sends opens nothing.
+    ipcMain.handle(CHANNELS.openHelp, (_e, kind: unknown) => { const url = helpUrl(kind, app.getVersion()); if (url) return shell.openExternal(url); });
     ipcMain.handle(CHANNELS.updateRestart, () => restartToUpdate());
     ipcMain.handle(CHANNELS.updateSteps, () => { const steps = updater.state.state === 'held' ? updater.state.steps : undefined; if (steps && steps.startsWith('https://')) return shell.openExternal(steps); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check(true)); // the person asked: works with automatic updates off

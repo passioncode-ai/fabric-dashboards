@@ -50,6 +50,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   windowZoom: { window: 'a double-click on the sidebar zooms or minimizes this window, as on a title bar (FD-282)' },
   rescan: { tool: 'list_services' }, // FD-249: the MCP server reads the services folder at every call; nothing to rescan
   serviceGuide: { tool: 'service_context' },
+  openHelp: { window: 'opens the support mailbox or the privacy page in the person\'s own apps; an agent writes to support itself' },
   updateRestart: { tool: 'app_update' },
   updateCheck: { tool: 'app_update' },
   updateSteps: { tool: 'app_update' },

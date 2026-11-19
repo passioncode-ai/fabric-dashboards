@@ -16,3 +16,10 @@ test('FD-249: every window channel names its agent route; every tool named is on
   const gaps = Object.values(PARITY).filter((r) => 'gap' in r).length;
   assert.ok(gaps <= 2, `the gaps only shrink: ${gaps}`);
 });
+
+test('FD-348: Help opens only its two fixed addresses: the support mailbox with the app and version, and the privacy page', async () => {
+  const { helpUrl } = await import('../src/core/help');
+  assert.equal(helpUrl('support', '0.8.215'), 'mailto:support@passioncode.ai?subject=Fabric%20Dashboards%200.8.215');
+  assert.equal(helpUrl('privacy', '0.8.215'), 'https://passioncode.ai/privacy/');
+  for (const other of ['terms', 'https://evil.example', '', null, { kind: 'support' }]) assert.equal(helpUrl(other, '1'), null, String(other));
+});
