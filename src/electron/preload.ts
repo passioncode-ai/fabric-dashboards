@@ -85,6 +85,7 @@ const api: FabricApi = {
   sessionsRevealTranscript: (id) => ipcRenderer.invoke(CHANNELS.sessionsRevealTranscript, id),
   sessionsTerminal: (id, size) => ipcRenderer.invoke(CHANNELS.sessionsTerminal, id, size),
   sessionsTranscript: (id) => ipcRenderer.invoke(CHANNELS.sessionsTranscript, id),
+  sessionsFabric: (id, which) => ipcRenderer.invoke(CHANNELS.sessionsFabric, id, which),
   sessionsHandovers: () => ipcRenderer.invoke(CHANNELS.sessionsHandovers),
   setSessionsHandovers: (on) => ipcRenderer.invoke(CHANNELS.sessionsHandoversSet, on),
   fallback: () => ipcRenderer.invoke(CHANNELS.fallback),

@@ -7,6 +7,7 @@ import type { AppStatus } from '../../core/types';
 import type { DuplicateSession } from '../../core/duplicate-sessions';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
 import type { TranscriptAnswer } from '../../core/transcript';
+import { newInFabric, openInFabric, type FabricOpenResult } from '../../core/fabric-session-link';
 import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, accountWords, tableStateWords, type SessionFilter } from '../../core/sessions-view';
 import { GROUP_ORDER } from '../../core/sessions';
 import { api, useT } from '../lib';
@@ -393,7 +394,8 @@ interface OpenBarProps {
 
 /** FD-354 (SCN-080 step 6, the operator 2026-11-19, board `57445717`): the ways to open a session from its page, under
  *  its header: its conversation here, a terminal in its folder, a new session in the same folder, its folder in Finder.
- *  Open in Fabric and Attach here come with Fabric's shared launch path (FD-354 step 2). */
+ *  Step 2: Open in Fabric and New session in Fabric, Fabric's session links (DEC-0189); Attach here waits for Fabric's
+ *  one-session events feed. */
 export function SessionOpenBar({ row, continued, reading, onRead, onNewHere }: Pick<ActionsProps, 'continued'> & { row: SessionRow } & OpenBarProps) {
   const { t, lang } = useT();
   const [busy, setBusy] = useState(false);
@@ -410,10 +412,25 @@ export function SessionOpenBar({ row, continued, reading, onRead, onNewHere }: P
     } finally { setBusy(false); }
   };
   const canRead = Boolean(row.launch?.transcript) && !hasConsole(row) && Boolean(onRead);
+  // FD-354 step 2: Fabric's session links (DEC-0189); the main process builds the same link from its own row.
+  const inFabric = openInFabric(row);
+  const newFabric = newInFabric(row);
+  const fabric = async (which: 'open' | 'new') => {
+    setBusy(true);
+    setError('');
+    try {
+      const r: FabricOpenResult = await api().sessionsFabric(row.id, which);
+      if (!r.ok) setError(r.reason === 'absent' ? t('sessions.fabric.absent') : t('sessions.fabric.failed', { reason: r.detail ?? r.reason }));
+    } catch (e) {
+      setError(t('sessions.fabric.failed', { reason: String((e as Error)?.message ?? e) }));
+    } finally { setBusy(false); }
+  };
   const buttons = [
     canRead && <button key="read" className="btn btn-sm" aria-pressed={Boolean(reading)} aria-label={t('sessions.openSession.label')} onClick={() => onRead?.(!reading)}>{t('sessions.openSession')}</button>,
     row.folder && <button key="terminal" className="btn btn-sm" disabled={busy} aria-label={t('sessions.terminal.label')} onClick={() => void act('terminal', () => api().sessionsTerminal(row.id, { cols: 120, rows: 32 }))}>{t('sessions.terminal')}</button>,
     row.folder && onNewHere && <button key="new" className="btn btn-sm" aria-label={t('sessions.newHere.label')} onClick={() => onNewHere(row)}>{t('newSession.button')}</button>,
+    inFabric && <button key="fabric" className="btn btn-sm" disabled={busy} aria-label={t(inFabric.action === 'session.open' ? 'sessions.fabric.open.label' : 'sessions.fabric.continue.label')} onClick={() => void fabric('open')}>{t('sessions.fabric.open')}</button>,
+    newFabric && <button key="fabric-new" className="btn btn-sm" disabled={busy} aria-label={t('sessions.fabric.new.label')} onClick={() => void fabric('new')}>{t('sessions.fabric.new')}</button>,
     row.actions.includes('reveal') && <button key="reveal" className="btn btn-sm" disabled={busy} onClick={() => void act('reveal', () => api().sessionsReveal(row.id))}>{revealLabel(lang, platformOf())}</button>,
   ].filter(Boolean);
   if (!buttons.length) return null;

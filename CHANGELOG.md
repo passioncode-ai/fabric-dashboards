@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- FD-354 step 2: on a session's page, "Open in Fabric" shows the session in Fabric while it runs, or offers to continue
+  it in Fabric's console once it stopped (Fabric asks you first), and "New session in Fabric" starts a new session in
+  Fabric for the session's folder. Both appear for Claude Code and Codex sessions on this computer; they need Fabric
+  0.3.26 or later. The `fabric://` link code is the contract's at DEC-0189 again, with its credential detector.
+
 ## 0.8.221 - 2026-11-20
 
 ### Fixed

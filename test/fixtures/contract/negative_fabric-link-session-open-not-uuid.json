@@ -1,0 +1,5 @@
+{
+  "action": "session.open",
+  "session": "my-session",
+  "from": "fabric-dashboards"
+}

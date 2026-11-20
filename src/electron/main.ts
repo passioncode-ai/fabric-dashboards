@@ -321,6 +321,8 @@ if (!app.requestSingleInstanceLock()) {
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
     keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus(),
+    // FD-354 step 2: Open in Fabric and New session in Fabric open a `fabric://` link with the OS's handler (ADR-0021).
+    fabric: { present: () => fabricPresent(), open: (url) => shell.openExternal(url) },
     // FD-103 (SCN-085, decision 9): a taken hand-over or an automatic continue is one system notification, silenced by
     // paused notifications and quiet hours; a click opens that session in the Sessions mode.
     notice: (n) => {

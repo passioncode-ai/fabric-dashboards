@@ -128,3 +128,22 @@ test('FD-354: Open session reads the end of the file the launch record names; no
   h.rowOf = () => ({ id: 'r3', folder: base, machine: null, actions: [], launch: { transcript: path.join(base, 'notes.txt') } });
   assert.deepEqual(await host.readSessionTranscript('r3'), { ok: false, reason: 'no-transcript' });
 });
+
+test('FD-354 step 2: Open in Fabric and New session in Fabric open the link built from the main process\'s row; no Fabric here, no link', async () => {
+  const base = tmp('fd-session-fabric-');
+  const opened: string[] = [];
+  let present = true;
+  const host = new ConsoleHost({ ...(hostWith(base, []) as unknown as { o: ConstructorParameters<typeof ConsoleHost>[0] }).o, fabric: { present: () => present, open: async (url: string) => { opened.push(url); } } });
+  const h = host as unknown as { rowOf: (id: string) => unknown };
+  const id = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+  assert.deepEqual(await host.openSessionInFabric('nope', 'open'), { ok: false, reason: 'unknown' });
+  h.rowOf = () => ({ id: 'r4', key: null, folder: '/w/fabric-dashboards', project: 'fabric-dashboards', machine: null, agent: 'claude-code', state: 'ended', actions: [], launch: { providerSessionId: id } });
+  assert.deepEqual(await host.openSessionInFabric('r4', 'open'), { ok: true, action: 'session.continue' });
+  assert.deepEqual(await host.openSessionInFabric('r4', 'new'), { ok: true, action: 'session.new' });
+  assert.deepEqual(opened, [`fabric://session/continue?session=${id}&from=fabric-dashboards`, 'fabric://session/new?project=fabric-dashboards&runner=claude-code&from=fabric-dashboards']);
+  present = false;
+  assert.deepEqual(await host.openSessionInFabric('r4', 'open'), { ok: false, reason: 'absent' });
+  h.rowOf = () => ({ id: 'r5', key: null, folder: '/w/a', project: 'a', machine: 'studio', agent: 'claude-code', state: 'ended', actions: [], launch: { providerSessionId: id } });
+  assert.deepEqual(await host.openSessionInFabric('r5', 'open'), { ok: false, reason: 'no-link' }, 'another machine\'s session');
+  assert.equal(opened.length, 2);
+});
