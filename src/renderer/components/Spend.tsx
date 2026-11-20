@@ -20,6 +20,8 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
   const [open, setOpen] = useState<string | null>(null);
   // FD-324: the limit whose Change is open, as `<agent key>\u0000<limit id>`.
   const [editing, setEditing] = useState<string | null>(null);
+  // FD-355: the limit whose last Save the agent answered with an earlier change (`repeated`), same form as `editing`.
+  const [recorded, setRecorded] = useState<string | null>(null);
 
   const read = async (force = false) => {
     setBusy(true);
@@ -104,14 +106,15 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
                                   <td className="num">{limitAmount(l, t)}</td>
                                   <td className={l.state === 'tripped' || l.state === 'breach' ? 'state-down' : l.state === 'near' ? 'state-degraded' : undefined}>{t(`limit.state.${l.state}`)}</td>
                                   {e.canSetLimits && <td>{l.editable && (
-                                    <button className="btn btn-sm" aria-expanded={editing === `${e.key}\u0000${l.id}`} aria-label={t('spend.limits.change.label', { limit: limitName(l, t) })} onClick={() => setEditing(editing === `${e.key}\u0000${l.id}` ? null : `${e.key}\u0000${l.id}`)}>{t('spend.limits.change')}</button>
+                                    <button className="btn btn-sm" aria-expanded={editing === `${e.key}\u0000${l.id}`} aria-label={t('spend.limits.change.label', { limit: limitName(l, t) })} onClick={() => { setRecorded(null); setEditing(editing === `${e.key}\u0000${l.id}` ? null : `${e.key}\u0000${l.id}`); }}>{t('spend.limits.change')}</button>
                                   )}</td>}
                                 </tr>
                                 {editing === `${e.key}\u0000${l.id}` && (
                                   <tr className="spend-limit-edit"><td colSpan={5}>
-                                    <LimitEditor agent={e.key} limit={l} t={t} onCancel={() => setEditing(null)} onDone={() => { setEditing(null); void read(true); }} />
+                                    <LimitEditor agent={e.key} limit={l} t={t} onCancel={() => setEditing(null)} onDone={(repeated) => { setEditing(null); setRecorded(repeated ? `${e.key}\u0000${l.id}` : null); void read(true); }} />
                                   </td></tr>
                                 )}
+                                {recorded === `${e.key}\u0000${l.id}` && <LimitRecorded t={t} />}
                               </Fragment>
                             ))}
                           </tbody>
@@ -163,7 +166,7 @@ const EDIT_ERRORS = new Set(['invalid-amount', 'no-change', 'reason-required', '
 
 /** FD-324 (contract DEC-0183 SL-2): Change on one editable limit: its amount, whether it is enforced, and the reason the
  *  agent records with it. A change that does more than tighten is the person's decision, and says so before Save. */
-export function LimitEditor({ agent, limit, t, onCancel, onDone }: { agent: string; limit: LimitView; t: T; onCancel: () => void; onDone: () => void }) {
+export function LimitEditor({ agent, limit, t, onCancel, onDone }: { agent: string; limit: LimitView; t: T; onCancel: () => void; onDone: (repeated: boolean) => void }) {
   const [amount, setAmount] = useState(limit.limitUsd === null ? '' : String(limit.limitUsd));
   const [enforced, setEnforced] = useState(limit.enforced);
   const [reason, setReason] = useState('');
@@ -178,7 +181,7 @@ export function LimitEditor({ agent, limit, t, onCancel, onDone }: { agent: stri
     setError(null);
     try {
       const r = await api().spendLimitSet(agent, change);
-      if (r.ok) onDone();
+      if (r.ok) onDone(r.repeated === true);
       else setError(t('spend.limits.edit.failed', { reason: EDIT_ERRORS.has(r.code) ? t(`spend.limits.err.${r.code}`) : r.message }));
     } finally {
       setBusy(false);
@@ -201,6 +204,12 @@ export function LimitEditor({ agent, limit, t, onCancel, onDone }: { agent: stri
       </div>
     </form>
   );
+}
+
+/** FD-355 (DEC-0183 SL-2): the agent answered Save with a change it had recorded before (`repeated`), so this press
+ *  changed nothing; Spend is read again and the limit row above shows what is in force. */
+export function LimitRecorded({ t }: { t: T }) {
+  return <tr className="spend-limit-edit"><td colSpan={5}><p className="meta" role="status">{t('spend.limits.edit.repeated')}</p></td></tr>;
 }
 
 /** FD-324 (DEC-0183 SL-4): the latest changes of an agent's limits, newest first, as the agent recorded them. */

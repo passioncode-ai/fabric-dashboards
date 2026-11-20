@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.221 - 2026-11-20
+
+### Fixed
+- FD-355: changing a spending limit on Spend sends the agent a new key for every Save. Before, a third Save within one
+  minute (lower, raise, lower again to the same amount) reused the first Save's key, the agent answered with its first
+  change and the raise stayed in force while the page said it changed. When an agent answers with a change it had
+  already recorded, Spend now says "Already recorded" and reads the report again, so the limit shown is the one in
+  force. MCP `spend_limit_set` without an `idempotencyKey` also makes a new change on each call.
+
 ## 0.8.220 - 2026-11-19
 
 0.8.219 was not published: its release check failed on a test that read the CI runner's own `SHELL`; its changes ship here.

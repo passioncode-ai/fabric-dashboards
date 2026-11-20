@@ -154,7 +154,7 @@ export const TOOLS = [
   },
   {
     name: 'spend_limit_set',
-    description: 'Change one of an agent\'s spending limits, as Change on Spend does (FD-324, contract DEC-0183): the agent\'s own `spend.limits.set` records it. limitId is a limit the spend tool lists with editable: true; give limitUsd (dollars, inside its minUsd..maxUsd), enforced, or both, and the reason it is recorded with. A lower amount or turning a limit on is your own act; a higher amount or turning it off is the operator\'s: pass their words in params._meta.decision (action spend.limits.set), else the answer is operator-decision-required. Answers the change the agent recorded (before, after, its id); the same idempotencyKey answers the first change.',
+    description: 'Change one of an agent\'s spending limits, as Change on Spend does (FD-324, contract DEC-0183): the agent\'s own `spend.limits.set` records it. limitId is a limit the spend tool lists with editable: true; give limitUsd (dollars, inside its minUsd..maxUsd), enforced, or both, and the reason it is recorded with. A lower amount or turning a limit on is your own act; a higher amount or turning it off is the operator\'s: pass their words in params._meta.decision (action spend.limits.set), else the answer is operator-decision-required. Answers the change the agent recorded (before, after, its id); the same idempotencyKey answers the first change (repeated: true); without one, each call is a new change (FD-355).',
     inputSchema: { type: 'object', properties: {
       service: serviceArg,
       limitId: { type: 'string', minLength: 1, maxLength: 128 },

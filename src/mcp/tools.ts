@@ -828,7 +828,7 @@ export async function spendLimitSet(deps: Deps, key: string, change: LimitChange
   const [entry] = await readSpend([me], { token: deps.token, fetchUsage: deps.usage, now: deps.now });
   if (entry?.kind !== 'report') throw new ToolError(`${k}: its spend report could not be read, so its limits are not known here`, { code: 'report-unreadable', service: k });
   try {
-    const answer = await applyLimitChange({ key: k, look: me, limits: entry.summary.limits, change, decision, readToken: deps.token, version: clientVersion, now: deps.now(), ...(idempotencyKey ? { idempotencyKey } : {}) });
+    const answer = await applyLimitChange({ key: k, look: me, limits: entry.summary.limits, change, decision, readToken: deps.token, version: clientVersion, ...(idempotencyKey ? { idempotencyKey } : {}) });
     return { service: k, ...answer };
   } catch (error) {
     if (!(error instanceof LimitEditError)) throw error;

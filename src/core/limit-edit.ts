@@ -5,7 +5,7 @@
 // amount or the limit turned on is the caller's own act; any other change is the operator's and travels with the
 // operator's decision in `_meta.decision` (DEC-0121 AP-2). The agent checks again and records the change; the host keeps
 // nothing of its own.
-import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { authHeaders } from '@passioncode-ai/fabric-service-host';
 import type { UsageLimit } from '@passioncode-ai/fabric-service-host/usage';
 import { changeOf, limitDoorOf, planLimitChange, SPEND_LIMITS_SET, type LimitChangeInput } from './limit-plan';
@@ -20,6 +20,11 @@ export class LimitEditError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
 
+/** FD-355: the key of one press, never reused: 32 hex digits after `fd-`. */
+export function newLimitKey(): string {
+  return `fd-${randomUUID().replace(/-/g, '')}`;
+}
+
 /** One change, as Change on Spend and MCP `spend_limit_set` both make it: checked against the agent's report, sent to
  *  its `spend.limits.set` with the operator's decision when it does more than tighten, and answered with the change the
  *  agent recorded. Refusals are `LimitEditError` with the contract's code (or this host's: `operator-decision-required`
@@ -32,7 +37,6 @@ export async function applyLimitChange(o: {
   decision: RelayedDecision | null;
   readToken: (file: string) => string | Promise<string>;
   version: string;
-  now: number;
   idempotencyKey?: string;
 }): Promise<{ change: Record<string, unknown>; repeated: boolean }> {
   const plan = planLimitChange(o.limits, o.change);
@@ -42,8 +46,11 @@ export async function applyLimitChange(o: {
   if (!door) throw new LimitEditError('no-limit-door', 'the agent does not take spend.limits.set on this Mac');
   const d = o.look.descriptor!;
   const headers = d.auth?.tokenFile ? authHeaders(d as Parameters<typeof authHeaders>[0], await o.readToken(d.auth.tokenFile)) : {};
-  // Without a key of the caller's, one per change and minute: a retry within it is the same change at the agent.
-  const key = o.idempotencyKey ?? `fd-${createHash('sha256').update(JSON.stringify([o.key, plan.args, o.decision?.at ?? null, Math.floor(o.now / 60_000)])).digest('hex').slice(0, 32)}`;
+  // FD-355 (board `995ee47b`): without a key of the caller's, a fresh one for every press. A key built from the change and
+  // the minute gave a third press (lower, raise, lower to the same amount) the first press's key, and the agent answered
+  // the first change (SL-2) while the raise stayed in force. A caller that retries passes its own key; a retry of a
+  // press that already landed is refused here as `no-change`, since the report is read again before every press.
+  const key = o.idempotencyKey ?? newLimitKey();
   let result: unknown;
   try {
     const { execute, ...at } = door;
