@@ -7,6 +7,19 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## Board run 2026-11-20 (no release): Fabric's answers for FD-354 step 2, FD-356 filed
+
+- Unattended board run (workflow `wf_10fa30ded78091e4`): 22 unread messages read; none needed code in this run.
+- FD-354 step 2 has its contract now (thread `3ca40854`, `8c7317e0`, `27afb03c`): `project=` is the repository folder's
+  name, `session/open` and `session/continue` ship in Fabric 0.3.26 (date 2026-11-20 21:00 Warsaw), the one-session
+  feed for Attach here on 2026-11-21 21:00 Warsaw. The order is in the FD-354 row of `docs/backlog.md`.
+- FD-356 filed (thread `12e4a915`): This Mac's «Идут» here (15) against Switchboard's `counts` (running 10); take
+  `counts` from Switchboard 0.7.125 or later.
+- Still open from 0.8.221: the `v0.8.221` tag is not on origin (`git ls-remote --tags origin 'v0.8.221*'` printed
+  nothing at this run); it waits for a session with the operator's word for releases.
+- Next task: once Fabric 0.3.26 is published (its state comes in thread `3ca40854`), build FD-354 step 2 as the row
+  says; independent of it, FD-356.
+
 ## 0.8.221: a spending limit's key per press (FD-355) (2026-11-20)
 
 - Board request `995ee47b` (company-assessment-agent, thread `06ff86a2`): the third of lower, raise, lower within one
