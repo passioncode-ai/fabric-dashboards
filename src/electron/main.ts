@@ -957,8 +957,8 @@ if (!app.requestSingleInstanceLock()) {
       const now = Date.now();
       const decision = plan.ok && !plan.tightens ? { by: 'operator' as const, via: 'relayed-instruction' as const, action: SPEND_LIMITS_SET, instruction: change.reason.trim().slice(0, 500), at: new Date(now).toISOString() } : null;
       try {
-        const answer = await applyLimitChange({ key, look: snap, limits: entry.summary.limits, change, decision, readToken: readTokenAsync, version: app.getVersion(), now });
-        log(`spend: ${key} limit ${change.limitId} changed${decision ? ' (the operator\'s decision)' : ''}`);
+        const answer = await applyLimitChange({ key, look: snap, limits: entry.summary.limits, change, decision, readToken: readTokenAsync, version: app.getVersion() });
+        log(`spend: ${key} limit ${change.limitId} ${answer.repeated ? 'already recorded (the agent answered an earlier change)' : 'changed'}${decision ? ' (the operator\'s decision)' : ''}`);
         lastSpendAt = 0;
         return { ok: true, ...answer };
       } catch (error) {

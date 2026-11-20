@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { summarizeUsage } from '@passioncode-ai/fabric-service-host/usage';
 import { callCapability, executeDoorOf } from '../src/core/mcp-client';
-import { changeOf, limitDoorOf, planLimitChange } from '../src/core/limit-edit';
+import { applyLimitChange, changeOf, limitDoorOf, newLimitKey, planLimitChange } from '../src/core/limit-edit';
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract', name), 'utf8'));
 const limits = summarizeUsage(fixture('positive_service-usage-limits-edit.json'), Date.parse('2026-10-04T12:00:00Z')).limits;
@@ -162,4 +162,72 @@ test('FD-324 (SL-6): the months chart names each month and its money; the last i
   assert.match(html, /<title>2026-09: ≥ \$38\.75<\/title>/, '4 calls carry no price: a lower bound');
   assert.match(html, /<title>2026-10: ≥ \$1\.59 so far<\/title>/);
   assert.equal((html.match(/class="partial"/g) ?? []).length, 2);
+});
+
+// FD-355 (board `995ee47b`, company-assessment CA-757): a key built from the change and the minute gave a third press the
+// first press's key (lower, raise with the operator's decision, lower again to the same amount within one minute), and
+// an agent that keeps SL-2 answered the first change, so the raise stayed in force while the page said "changed".
+test('FD-355: every press sends a key of its own; lower, raise, lower within one minute is three changes at the agent', async (t) => {
+  const seen = new Map<string, Record<string, unknown>>();
+  const keys: string[] = [];
+  let inForce = 20;
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      if (req.method === 'DELETE') { res.writeHead(204); res.end(); return; }
+      const msg = JSON.parse(body) as { id?: number; method: string; params?: { name: string; arguments: { arguments: { limitUsd: number }; idempotencyKey: string } } };
+      const json = (result: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result })); };
+      if (msg.method === 'initialize') return json({ protocolVersion: '2025-03-26' });
+      if (!msg.id) { res.writeHead(202); res.end(); return; }
+      if (msg.method === 'tools/list') return json({ tools: [{ name: 'search' }, { name: 'execute' }] });
+      // The agent's SL-2: the same key answers the first change it recorded, `repeated: true`, and changes nothing.
+      const { arguments: a, idempotencyKey: key } = msg.params!.arguments;
+      keys.push(key);
+      const first = seen.get(key);
+      if (first) return json({ structuredContent: { change: first, repeated: true } });
+      const change = { id: `chg-${seen.size + 1}`, limitId: 'machine.daily', before: { limitUsd: inForce, enforced: true }, after: { limitUsd: a.limitUsd, enforced: true } };
+      inForce = a.limitUsd;
+      seen.set(key, change);
+      return json({ structuredContent: { change } });
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+  const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  const look = { descriptor: { origin }, wellKnown: { surfaces: { mcp: { transport: 'streamable-http', path: '/mcp', capabilities: ['spend.limits.set'] } } } } as Parameters<typeof applyLimitChange>[0]['look'];
+  const daily = limits.find((l) => l.id === 'machine.daily')!;
+  const at = (usd: number) => limits.map((l) => (l.id === 'machine.daily' ? { ...l, limitUsd: usd } : l));
+  const decision = { by: 'operator' as const, via: 'relayed-instruction' as const, action: 'spend.limits.set', instruction: 'launch week', at: '2026-11-20T05:00:00.000Z' };
+  const press = (limitUsd: number, current: number, d: typeof decision | null, idempotencyKey?: string) =>
+    applyLimitChange({ key: 'demo.default', look, limits: at(current), change: { limitId: daily.id, limitUsd, reason: 'probe' }, decision: d, readToken: () => '', version: '0.8.221', ...(idempotencyKey ? { idempotencyKey } : {}) });
+  assert.equal(daily.limitUsd, 20);
+  const one = await press(10, 20, null);
+  const two = await press(20, 10, decision);
+  const three = await press(10, 20, null);
+  assert.deepEqual([one.repeated, two.repeated, three.repeated], [false, false, false]);
+  assert.equal(new Set(keys).size, 3, 'three presses, three keys');
+  assert.ok(keys.every((k) => /^fd-[0-9a-f]{32}$/.test(k)), keys.join(' '));
+  assert.equal(inForce, 10, 'the last press is in force, not the raise');
+  assert.equal(three.change.id, 'chg-3');
+  // A caller's own key goes as it is, and the agent's `repeated` answer comes back for the page or the MCP caller to show.
+  const mine = await press(5, 10, null, 'caller-key-1');
+  const again = await press(5, 10, null, 'caller-key-1');
+  assert.equal(keys.at(-1), 'caller-key-1');
+  assert.deepEqual([mine.repeated, again.repeated], [false, true]);
+  assert.equal(again.change.id, mine.change.id);
+  assert.notEqual(newLimitKey(), newLimitKey());
+});
+
+test('FD-355: a Save the agent answered with an earlier change reads "already recorded", in English and Russian', async () => {
+  const React = await import('react');
+  (globalThis as { React?: unknown }).React = React;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { LimitRecorded } = await import('../src/renderer/components/Spend');
+  const { t: tr } = await import('../src/core/i18n');
+  const en = renderToStaticMarkup(React.createElement(LimitRecorded, { t: (k: string, p?: Record<string, string | number>) => tr('en', k, p) }));
+  assert.match(en, /role="status"/);
+  assert.match(en, /Already recorded: the agent answered with an earlier change, not this one\./);
+  const ru = renderToStaticMarkup(React.createElement(LimitRecorded, { t: (k: string, p?: Record<string, string | number>) => tr('ru', k, p) }));
+  assert.match(ru, /Уже записано: агент вернул прежнее изменение, а не это\./);
 });
