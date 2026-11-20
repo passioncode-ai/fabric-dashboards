@@ -7,6 +7,25 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## FD-354 step 2, part 1: Open in Fabric and New session in Fabric (2026-11-20, unreleased)
+
+- Unattended run (Fabric task `b0d969ac`, workflow `wf_aa424a86b7d0ec3f`), continued after Fabric 0.3.26 was published
+  (2026-11-20 08:33 UTC, board message `b518d8f7` in thread `3ca40854`).
+- Done in `feat/fd-354-step2-open-in-fabric`: `src/core/fabric-links.ts` re-copied from fabric-agent-contract `4c978495`
+  (DEC-0189: `session/open`, `session/continue`, `from`) with its detector `src/core/secret-shape.ts` copied whole beside
+  it, four new fixtures (`test/fixtures/contract/SOURCE.txt`); `src/core/fabric-session-link.ts` builds Open in Fabric
+  (`session/open` while a process runs the session, else `session/continue`) and New session in Fabric (`session/new`,
+  `project` the folder's last name); `ConsoleHost.openSessionInFabric` and IPC `sessionsFabric` open it with the OS's
+  `fabric://` handler; two buttons on a session's page (SCN-080 step 9), en and ru strings.
+- Checks run: `npm run check` (see the PR); targeted `node --import tsx --test test/fabric-button.test.ts
+  test/fabric-session-link.test.ts test/session-open.test.ts test/parity.test.ts test/copy.test.ts test/parts.test.ts`:
+  65 of 65 pass.
+- Not done: a release (`v0.8.221` is still untagged and this change is under *Unreleased* in `CHANGELOG.md`; a tag waits
+  for a session with the operator's word for releases); the copy check of the seven new strings (no copy check tools in the
+  run); the button was not pressed against a live Fabric in this run (no person, no window).
+- Next task: Attach here, once Fabric posts the one-session events feed's schema in thread `3ca40854` (promised over the
+  hub's MCP 2026-11-21 21:00 Warsaw). Independent of it: FD-356.
+
 ## Board run 2026-11-20 (no release): Fabric's answers for FD-354 step 2, FD-356 filed
 
 - Unattended board run (workflow `wf_10fa30ded78091e4`): 22 unread messages read; none needed code in this run.

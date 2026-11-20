@@ -12,11 +12,11 @@ const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(fixtures,
 /** A fixture is the link's fields; the URL is its action plus every other field as a parameter. */
 const urlOf = (f: Record<string, string>) => {
   const { action, ...params } = f;
-  return `fabric://${action === 'chat' ? 'chat' : 'session/new'}?${new URLSearchParams(params).toString()}`;
+  return `fabric://${action.replace('.', '/')}?${new URLSearchParams(params).toString()}`;
 };
 
 test('FD-45 FL-6: the copied link code accepts the contract\'s positive fabric-link fixtures and refuses its negative ones', () => {
-  for (const name of ['positive_fabric-link-chat.json', 'positive_fabric-link-session.json']) {
+  for (const name of ['positive_fabric-link-chat.json', 'positive_fabric-link-session.json', 'positive_fabric-link-session-open.json', 'positive_fabric-link-session-continue.json']) {
     const parsed = parseFabricLink(urlOf(fixture(name)));
     assert.equal(parsed.ok, true, `${name}: ${JSON.stringify(parsed)}`);
   }
@@ -26,6 +26,10 @@ test('FD-45 FL-6: the copied link code accepts the contract\'s positive fabric-l
   const session = parseFabricLink(urlOf(fixture('negative_fabric-link-session-without-project.json')));
   assert.deepEqual(session, { ok: false, problems: ['a session link names its project'] });
   assert.throws(() => buildFabricLink({ action: 'chat', service: 'Not An Id' }), TypeError, 'the builder never emits a link the grammar refuses');
+  // FD-354 step 2 (DEC-0189): a session link names a UUID, and `from` is ignored on chat, not taken.
+  assert.deepEqual(parseFabricLink(urlOf(fixture('negative_fabric-link-session-open-not-uuid.json'))), { ok: false, problems: ['session is not a valid session id (a UUID)'] });
+  const chatFrom = parseFabricLink(urlOf(fixture('negative_fabric-link-chat-with-from.json')));
+  assert.deepEqual(chatFrom, { ok: true, link: { action: 'chat', service: 'example-agent.default' }, ignored: ['from'] }, 'the contract\'s negative is for its schema: the parser ignores an unknown parameter (FL-2)');
 });
 
 test('FD-45 ADR-0021 decision 3: with Fabric installed the button opens the chat about the service at once, with no project', () => {

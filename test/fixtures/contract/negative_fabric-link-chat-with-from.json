@@ -1,0 +1,5 @@
+{
+  "action": "chat",
+  "service": "example-agent.default",
+  "from": "fabric-dashboards"
+}

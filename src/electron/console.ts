@@ -21,6 +21,7 @@ import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, shellQuote, terminalScript, type SpawnPty } from '../core/consoles';
 import { parseTranscript, TRANSCRIPT_TAIL_BYTES, type TranscriptAnswer } from '../core/transcript';
+import { newInFabric, openInFabric, type FabricOpenResult } from '../core/fabric-session-link';
 import { dropKept, loadKept, saveKept } from '../core/kept-output';
 import { admit, machineProbe, parseCapacity, type Admission, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
@@ -120,6 +121,8 @@ export interface ConsoleHostOptions {
   placedElsewhere?: (key: string) => { placedOn: string; forward?: string } | null;
   /** FD-199: this user's launchd jobs, for the ssh route of a forward (default: `~/Library/LaunchAgents`; tests pass jobs). */
   launchJobs?: () => LaunchJob[];
+  /** FD-354 step 2: whether an app handles `fabric://` here, and how a link is opened (the OS's handler); absent, no link opens. */
+  fabric?: { present: () => boolean; open: (url: string) => Promise<void> };
 }
 
 /** FD-62: how often hand-overs are read, in AGENTS.md's lifecycle table. */
@@ -1919,6 +1922,23 @@ export class ConsoleHost {
       return { ok: false, reason: 'spawn', detail: (error as Error).message.slice(0, 200) };
     }
   }
+
+  /** FD-354 step 2: Open in Fabric (`which: 'open'`) or New session in Fabric (`'new'`) for a row: the link is built here
+   *  from the row the main process holds, never from the page, and opened by the OS's `fabric://` handler. */
+  async openSessionInFabric(id: string, which: 'open' | 'new'): Promise<FabricOpenResult> {
+    const row = this.rowOf(id);
+    if (!row) return { ok: false, reason: 'unknown' };
+    const link = which === 'open' ? openInFabric(row, row.key ? this.sessionIds.get(row.key)?.sessionId ?? null : null) : newInFabric(row);
+    if (!link) return { ok: false, reason: 'no-link' };
+    if (!this.o.fabric?.present()) return { ok: false, reason: 'absent' };
+    try {
+      await this.o.fabric.open(link.url);
+      this.o.log(`sessions: ${link.action} in Fabric for ${row.project}`);
+      return { ok: true, action: link.action };
+    } catch (error) {
+      return { ok: false, reason: 'failed', detail: (error as Error).message.slice(0, 200) };
+    }
+  }
   // #endregion session-open
 
   /** FD-211: a console that only shows a hosted session; quitting or closing it leaves the session running. */
@@ -2239,6 +2259,7 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.sessionsRevealTranscript, (_e, id) => (idOk(id) ? this.revealTranscript(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsTerminal, (_e, id, s) => (idOk(id) ? this.openSessionTerminal(id, size(s ?? { cols: 120, rows: 32 })) : notARow()));
     ipcMain.handle(CHANNELS.sessionsTranscript, (_e, id) => (idOk(id) ? this.readSessionTranscript(id) : notARow()));
+    ipcMain.handle(CHANNELS.sessionsFabric, (_e, id, which) => (idOk(id) && (which === 'open' || which === 'new') ? this.openSessionInFabric(id, which) : notARow()));
     ipcMain.handle(CHANNELS.sessionsHandovers, () => this.readHandoversSwitch());
     ipcMain.handle(CHANNELS.sessionsHandoversSet, (_e, on) => (typeof on === 'boolean' ? this.setHandoversSwitch(on) : Promise.reject(new Error('not a switch value'))));
     ipcMain.handle(CHANNELS.fallback, () => this.readFallback());
