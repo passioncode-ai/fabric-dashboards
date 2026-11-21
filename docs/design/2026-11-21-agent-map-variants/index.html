@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карта агентов: три варианта на выбор (FD-363)</title>
+<link rel="stylesheet" href="../../../src/renderer/brand/fabric-tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 20px; }
+  .card { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+  .card h2 { font-size: var(--pc-type-card); text-transform: none; letter-spacing: 0; color: var(--pc-text); margin: 0; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card a.btn { text-decoration: none; align-self: flex-start; margin-top: auto; }
+  .lead { max-width: 80ch; }
+  table { border-collapse: collapse; margin-top: 24px; width: 100%; max-width: 900px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--pc-border); font-size: var(--pc-type-meta); vertical-align: top; }
+  th { color: var(--pc-text-muted); font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Карта агентов: три варианта на выбор</h1>
+  <p class="lead">Сейчас карта рисует каждую связь постоянной линией поверх карточек, и при 67 агентах линии не читаются. Во всех трёх вариантах в покое нет ни одной линии поверх агента, сверху стоит то, что ждёт вас, связи одного агента видны по наведению или с клавиатуры, а вызовы видны как короткие импульсы. Строка счётчиков, фильтр по организациям и блок «Проблемы» остаются как есть.</p>
+  <p class="meta">Данные в макетах выдуманы и одинаковы во всех трёх: 67 агентов, 47 объявляют связи. Откройте каждый, наведите на агента, пройдите по агентам клавишей Tab, снимите галочку «Движение».</p>
+  <div class="cards">
+    <section class="card">
+      <h2>А. Дорожки</h2>
+      <p>Строка на организацию, колонка на машину. Агент всегда на своём месте.</p>
+      <ul><li>Имена всех агентов видны сразу.</li><li>Машина и организация читаются по положению.</li><li>Ближе всего к нынешней карте, привыкать не нужно.</li><li>Слабое место: общая картина связей видна только по одному агенту за раз.</li></ul>
+      <a class="btn" href="a-lanes.html">Открыть вариант А</a>
+    </section>
+    <section class="card">
+      <h2>Б. Созвездие</h2>
+      <p>Организация это облако, агент это знак состояния, между облаками стволы с числом связей.</p>
+      <ul><li>Самый живой: импульсы, как в виде мозга Memory.</li><li>Сразу видно, какие организации связаны и насколько.</li><li>Ложится на общий модуль графа Fabric.</li><li>Слабое место: имена большинства агентов видны только по наведению.</li></ul>
+      <a class="btn" href="b-constellation.html">Открыть вариант Б</a>
+    </section>
+    <section class="card">
+      <h2>В. Матрица</h2>
+      <p>Строка вызывает, столбец отвечает, знак в клетке это состояние связи.</p>
+      <ul><li>Каждая связь видна сразу, без наведения.</li><li>Связь в чужую организацию бросается в глаза.</li><li>Не ломается и при 200 агентах.</li><li>Слабое место: выглядит строже, это таблица, а не граф.</li></ul>
+      <a class="btn" href="c-matrix.html">Открыть вариант В</a>
+    </section>
+  </div>
+  <table>
+    <tr><th>Что сравниваем</th><th>А. Дорожки</th><th>Б. Созвездие</th><th>В. Матрица</th></tr>
+    <tr><td>Линии в покое</td><td>нет</td><td>только стволы между организациями</td><td>нет совсем</td></tr>
+    <tr><td>Имена агентов в покое</td><td>все</td><td>только те, кто ждёт вас или не работает</td><td>все, кто связан</td></tr>
+    <tr><td>Все связи сразу</td><td>нет, по агенту</td><td>нет, по агенту и стволами</td><td>да</td></tr>
+    <tr><td>Машина агента</td><td>колонка</td><td>кольцо вокруг знака</td><td>в панели справа</td></tr>
+    <tr><td>Движение</td><td>точка бежит по связи</td><td>точка бежит по связи</td><td>рамка вспыхивает на клетке</td></tr>
+    <tr><td>Без движения</td><td colspan="3">карта та же, ничего не теряется</td></tr>
+  </table>
+  <p class="meta foot">FD-363, шаг 1. Макеты локальные, открываются из папки репозитория; ничего в приложении не изменено.</p>
+</div>
+</body>
+</html>
