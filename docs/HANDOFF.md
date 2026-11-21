@@ -29,6 +29,15 @@ test; both fold into 0.8.108).
   locked, so window events came through the 15 s sync (FD-64), which the test waits for.
 - Release: this version also carries FD-355 (0.8.221, never tagged) and FD-354 step 2. The owner's order names the
   release (item 4: a new version by the project's rules, the tag, the build, the install on this Mac).
+- Published: PR #752 merged as `ca7b4245`; `validate.yml` on the branch green on five runners (run 44914892342);
+  tag `v0.8.222`, release run 44915557704 green, published 2026-11-21 15:17 UTC with 16 assets. This Mac took it
+  through MCP `app_update` (`check` read `ready`, `restart`): `started 0.8.222` at 15:20:08 UTC in `main.log`.
+- Checked on the installed 0.8.222: a dashboard opened by link, the app hidden for 45 s and shown again (`main.log`
+  15:20:38 hidden, 15:21:23 shown); the page was judged well, no FD-364 line and no error, nothing reloaded. The
+  unwell paths (signed out, not answering, released) are proved by the e2e on the same commit, not on the owner's Mac.
+- Found, not fixed: `test/loopback-owner.test.ts` *FD-159: on macOS this process's own listener…* fails on the Mac
+  Studio over ssh (`netstat and ps` reads `unknown`); it passes on the macOS runner. local-lifecycle still reads
+  `dashboards.desktop` as `gave_up` since 2026-11-19 with `transportReady: false` (FD-365 names it).
 - Next task: FD-356 part (1), as before. Then FD-363 step 1 (2026-11-26), FD-357 and FD-358 parts (1) (2026-11-27).
 
 ## Board run 2026-11-21 (no release, no code): the system plan's rows FD-359 to FD-363
