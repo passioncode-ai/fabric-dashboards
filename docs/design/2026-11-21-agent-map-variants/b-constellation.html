@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карта агентов. Вариант Б: созвездие</title>
+<link rel="stylesheet" href="../../../src/renderer/brand/fabric-tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .sky { width: 100%; height: auto; display: block; }
+  .cluster { fill: var(--pc-panel-raised); stroke: var(--pc-border); }
+  .cluster-name { font-size: 13px; font-weight: 600; }
+  .cluster-count { font-size: 11px; fill: var(--pc-text-muted); font-family: var(--pc-font-data); }
+  .trunk { stroke: var(--pc-border-strong); fill: none; }
+  .trunk-count { font-size: 10px; fill: var(--pc-text-muted); font-family: var(--pc-font-data); }
+  .node { cursor: pointer; }
+  .node .glyph { font-size: 14px; text-anchor: middle; dominant-baseline: central; }
+  .node .hit { fill: transparent; }
+  .node .ring { fill: none; stroke: var(--pc-accent); stroke-width: 1.5; }
+  .node .machine { fill: none; stroke: var(--pc-text-muted); stroke-width: 1; }
+  .node .label { font-size: 10.5px; paint-order: stroke; stroke: var(--pc-panel-raised); stroke-width: 3px; }
+  .node:focus-visible { outline: none; }
+  .node:focus-visible .hit { stroke: var(--pc-focus); stroke-width: 2; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="shared.js"></script>
+<script>
+AgentMap.mount({
+  title: 'Вариант Б, созвездие',
+  note: 'Организация это облако, агент это знак своего состояния внутри него. В покое видны только стволы между организациями с числом связей и имена тех, кто ждёт вас или не работает. Связи агента и имена его соседей появляются при наведении или фокусе. Вызовы бегут импульсами, как сигналы в виде мозга Memory. Самый живой вариант и самый близкий к общему модулю графа; имена остальных агентов видны только по наведению.',
+  render(api) {
+    const { model, el, stage } = api;
+    const W = 1000, H = 640;
+    const PLACE = { personal: [270, 215, 165], acme: [735, 210, 150], platform: [505, 425, 100], northwind: [245, 505, 105], none: [800, 520, 62] };
+    const svg = el('svg', { class: 'sky', viewBox: '0 0 ' + W + ' ' + H, role: 'group', 'aria-label': 'Карта агентов' });
+    const back = el('g', {}), wires = el('g', {}), front = el('g', {});
+    svg.append(back, wires, front);
+
+    const pos = new Map(), nodes = new Map(), clusters = new Map();
+    for (const org of model.ORGS) {
+      const [cx, cy, R] = PLACE[org.id];
+      const g = el('g', { class: 'fade', 'data-org': org.id },
+        el('circle', { class: 'cluster', cx, cy, r: R }),
+        el('text', { class: 'cluster-name', x: cx, y: cy - R - 8, 'text-anchor': 'middle' }, org.name + (org.yours ? ' (ваши)' : '')),
+        el('text', { class: 'cluster-count', x: cx, y: cy - R + 14, 'text-anchor': 'middle' }, org.size));
+      back.append(g); clusters.set(org.id, g);
+      // The agents others call most sit nearest the centre; a sunflower spiral keeps them apart.
+      const here = model.agents.filter((a) => a.org === org.id).sort((x, y) => y.calledBy.length - x.calledBy.length);
+      here.forEach((a, i) => {
+        const r = (R - 22) * Math.sqrt((i + 0.5) / here.length), t = i * 2.39996 + 0.6;
+        pos.set(a.id, { x: cx + r * Math.cos(t), y: cy + r * Math.sin(t), left: Math.cos(t) < 0 });
+      });
+    }
+    // At rest: one trunk per pair of organizations, its width from how many calls cross.
+    const cross = new Map();
+    for (const e of model.edges) {
+      const a = model.byId.get(e.from).org, b = model.byId.get(e.to).org;
+      if (a !== b) { const k = [a, b].sort().join('|'); cross.set(k, (cross.get(k) || 0) + 1); }
+    }
+    for (const [k, n] of cross) {
+      const [a, b] = k.split('|'), p = PLACE[a], q = PLACE[b];
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1]), ux = (q[0] - p[0]) / d, uy = (q[1] - p[1]) / d;
+      const x1 = p[0] + ux * p[2], y1 = p[1] + uy * p[2], x2 = q[0] - ux * q[2], y2 = q[1] - uy * q[2];
+      back.append(el('g', { class: 'fade trunkg', 'data-pair': k },
+        el('line', { class: 'trunk', x1, y1, x2, y2, 'stroke-width': 1 + Math.log2(n + 1) }),
+        el('text', { class: 'trunk-count', x: (x1 + x2) / 2 + 6, y: (y1 + y2) / 2 - 6 }, n)));
+    }
+    for (const a of model.agents) {
+      const p = pos.get(a.id), attention = a.waits || a.state === 'down';
+      const g = el('g', { class: 'node fade', tabindex: 0, role: 'button', transform: 'translate(' + p.x + ',' + p.y + ')', ...api.agentProps(a),
+        onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); api.pin(a.id); } } },
+        el('circle', { class: 'hit', r: 12 }),
+        a.machine === 'studio' ? el('circle', { class: 'machine', r: 10 }) : null,
+        a.machine === 'online' ? el('circle', { class: 'machine', r: 10, 'stroke-dasharray': '2 3' }) : null,
+        a.waits ? el('circle', { class: 'ring', r: 13 }) : null,
+        el('text', { class: 'glyph', style: 'fill:' + model.STATE[a.state].color }, model.STATE[a.state].mark),
+        // The name sits on the side away from the cloud's centre, so the names of neighbours do not pile up.
+        el('text', { class: 'label', x: p.left ? -13 : 13, y: 4, 'text-anchor': p.left ? 'end' : 'start', 'data-always': attention ? '1' : null }, a.name));
+      front.append(g); nodes.set(a.id, g);
+    }
+    const legend = el('p', { class: 'meta legend' },
+      el('span', {}, '● работает'), el('span', {}, '◐ частично'), el('span', {}, '✕ не работает'), el('span', {}, '○ выключен'),
+      el('span', {}, 'жёлтое кольцо: ждёт вас'), el('span', {}, 'тонкое кольцо: Studio'), el('span', {}, 'пунктирное кольцо: в облаке'),
+      el('span', {}, 'сплошная линия: вызывает, пунктир: его вызывают'));
+    stage.append(svg, legend);
+
+    const arc = (e) => {
+      const a = pos.get(e.from), b = pos.get(e.to), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y;
+      return 'M' + a.x + ',' + a.y + ' Q' + (mx - dy * 0.18) + ',' + (my + dx * 0.18) + ' ' + b.x + ',' + b.y;
+    };
+    api.onChange((s) => {
+      wires.querySelectorAll('.wire').forEach((n) => n.remove());
+      for (const [id, g] of clusters) g.style.display = s.hidden.has(id) ? 'none' : '';
+      back.querySelectorAll('.trunkg').forEach((g) => {
+        const off = g.dataset.pair.split('|').some((o) => s.hidden.has(o));
+        g.style.display = off ? 'none' : ''; g.classList.toggle('dim', !!s.focus);
+      });
+      for (const [id, g] of nodes) {
+        const a = model.byId.get(id), near = s.near && s.near.has(id);
+        g.style.display = s.visible(a) ? '' : 'none';
+        g.classList.toggle('dim', !!s.near && !near);
+        const label = g.querySelector('.label');
+        label.style.display = (s.near ? near : label.dataset.always) ? '' : 'none';
+        label.style.fontWeight = s.focus === id ? 700 : 400;
+      }
+      if (!s.focus) return;
+      for (const e of model.edges) {
+        if (e.from !== s.focus && e.to !== s.focus) continue;
+        if (!s.visible(model.byId.get(e.from)) || !s.visible(model.byId.get(e.to))) continue;
+        wires.append(el('path', { class: 'wire', d: arc(e), fill: 'none', stroke: model.STATE[e.state].color, 'stroke-width': 1.75, 'stroke-dasharray': e.to === s.focus ? '5 4' : null }));
+      }
+    });
+    api.signals((e) => api.travel(wires, arc(e), 'var(--pc-info)'));
+  },
+});
+</script>
+</body>
+</html>

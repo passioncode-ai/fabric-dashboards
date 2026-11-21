@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карта агентов. Вариант В: матрица</title>
+<link rel="stylesheet" href="../../../src/renderer/brand/fabric-tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .matrix { display: block; }
+  .matrix .name { font-size: 11px; cursor: pointer; }
+  .matrix .name .hit { fill: transparent; }
+  .matrix .name:focus-visible { outline: none; }
+  .matrix .name:focus-visible .hit { stroke: var(--pc-focus); stroke-width: 1.5; }
+  .matrix .orgname { font-size: 10px; font-weight: 600; fill: var(--pc-text-muted); text-transform: uppercase; letter-spacing: .06em; }
+  .matrix .slot { fill: var(--pc-panel-raised); stroke: var(--pc-border); stroke-width: .5; }
+  .matrix .band { fill: var(--pc-accent-soft); }
+  .matrix .cellmark { font-size: 11px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .matrix .hot { fill: none; stroke: var(--pc-info); stroke-width: 2; pointer-events: none; }
+  .loose { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .loose button { font: inherit; font-size: var(--pc-type-meta); color: var(--pc-text); background: none; border: 1px dashed var(--pc-border-strong); border-radius: var(--pc-radius-pill); padding: 3px 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="shared.js"></script>
+<script>
+AgentMap.mount({
+  title: 'Вариант В, матрица',
+  note: 'Линий нет вообще. Строка это агент, который вызывает, столбец это агент, которого вызывают, знак в клетке это состояние связи. Организации идут блоками, поэтому связь за пределы своего блока сразу бросается в глаза. Наведение или фокус на имя подсвечивает строку и столбец агента. Вызов виден как рамка, которая на мгновение вспыхивает на клетке. Самый плотный и точный вариант: все 67 агентов и каждая связь видны сразу, без наведения; выглядит строже остальных, машина агента видна только в панели справа.',
+  render(api) {
+    const { model, el, stage } = api;
+    const S = 17, LEFT = 150, TOP = 118, GAP = 20;
+    const order = (list) => model.ORGS.flatMap((o) => list.filter((a) => a.org === o.id));
+    const rows = order(model.agents.filter((a) => a.calls.length)), cols = order(model.agents.filter((a) => a.calledBy.length));
+    const place = (list) => { const at = new Map(); let p = 0, last = null; for (const a of list) { if (last && a.org !== last) p += GAP; at.set(a.id, p); p += S; last = a.org; } return { at, size: p }; };
+    const R = place(rows), C = place(cols);
+    const svg = el('svg', { class: 'matrix', width: LEFT + C.size + 12, height: TOP + R.size + 12, role: 'group', 'aria-label': 'Матрица связей' });
+    const bands = el('g', {}), grid = el('g', {}), marks = el('g', {}), heads = el('g', {}), fx = el('g', {});
+    svg.append(bands, grid, marks, heads, fx);
+    const nameOf = (a) => (a.waits ? '◆ ' : '') + a.name;
+    const key = (a) => ({ onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); api.pin(a.id); } } });
+
+    let seen = null;
+    for (const a of rows) {
+      const y = TOP + R.at.get(a.id);
+      if (a.org !== seen) { heads.append(el('text', { class: 'orgname', x: 0, y: y - 6 }, model.ORGS.find((o) => o.id === a.org).name)); seen = a.org; }
+      heads.append(el('g', { class: 'name fade', tabindex: 0, role: 'button', 'data-row': a.id, ...api.agentProps(a), ...key(a) },
+        el('rect', { class: 'hit', x: 0, y, width: LEFT - 2, height: S - 1 }),
+        el('text', { x: LEFT - 8, y: y + S / 2 + 4, 'text-anchor': 'end', style: a.waits ? 'fill:var(--pc-link)' : null }, nameOf(a))));
+      for (const b of cols) grid.append(el('rect', { class: 'slot', x: LEFT + C.at.get(b.id), y, width: S - 1, height: S - 1, rx: 2 }));
+    }
+    for (const b of cols) {
+      const x = LEFT + C.at.get(b.id) + S / 2;
+      heads.append(el('g', { class: 'name fade', transform: 'rotate(-52 ' + x + ' ' + (TOP - 8) + ')', tabindex: 0, role: 'button', 'data-col': b.id, ...api.agentProps(b), ...key(b) },
+        el('rect', { class: 'hit', x: x - 4, y: TOP - 19, width: 128, height: 15 }),
+        el('text', { x, y: TOP - 8, style: b.waits ? 'fill:var(--pc-link)' : null }, nameOf(b))));
+    }
+    const cells = new Map();
+    for (const e of model.edges) {
+      const x = LEFT + C.at.get(e.to), y = TOP + R.at.get(e.from);
+      const from = model.byId.get(e.from), to = model.byId.get(e.to);
+      const g = el('g', { class: 'fade', 'data-from': e.from, 'data-to': e.to, onmouseenter: () => api.focus(e.from), onmouseleave: () => api.focus(null) },
+        el('rect', { x, y, width: S - 1, height: S - 1, rx: 2, fill: 'var(--pc-panel)', stroke: model.STATE[e.state].color, 'stroke-width': from.org === to.org ? 1 : 2 }),
+        el('text', { class: 'cellmark', x: x + (S - 1) / 2, y: y + (S - 1) / 2, style: 'fill:' + model.STATE[e.state].color }, model.STATE[e.state].mark),
+        el('title', {}, from.name + ' вызывает ' + to.name + ': ' + model.STATE[e.state].label.toLowerCase()));
+      marks.append(g); cells.set(e.id, { g, x, y });
+    }
+    const loose = model.agents.filter((a) => !a.calls.length && !a.calledBy.length);
+    stage.append(svg,
+      el('h2', { style: 'margin-top:16px' }, 'Не связаны: ' + loose.length),
+      el('div', { class: 'loose' }, loose.map((a) => el('button', { ...api.agentProps(a) }, el('span', { style: 'color:' + model.STATE[a.state].color, 'aria-hidden': 'true' }, model.STATE[a.state].mark), ' ' + a.name))),
+      el('p', { class: 'meta', style: 'margin-top:10px' }, 'Строки: кто вызывает (' + rows.length + '). Столбцы: кого вызывают (' + cols.length + '). Толстая рамка клетки: связь в другую организацию. ◆ у имени: агент ждёт вас.'));
+
+    api.onChange((s) => {
+      bands.replaceChildren();
+      const shown = (id) => s.visible(model.byId.get(id));
+      if (s.focus) {
+        if (R.at.has(s.focus)) bands.append(el('rect', { class: 'band', x: 0, y: TOP + R.at.get(s.focus) - 1, width: LEFT + C.size, height: S + 1 }));
+        if (C.at.has(s.focus)) bands.append(el('rect', { class: 'band', x: LEFT + C.at.get(s.focus) - 1, y: TOP - 4, width: S + 1, height: R.size + 4 }));
+      }
+      heads.querySelectorAll('.name').forEach((n) => {
+        const id = n.dataset.row || n.dataset.col;
+        n.classList.toggle('dim', !shown(id) || (!!s.near && !s.near.has(id)));
+        n.style.fontWeight = s.focus === id ? 700 : 400;
+      });
+      marks.querySelectorAll('g').forEach((g) => {
+        const live = shown(g.dataset.from) && shown(g.dataset.to);
+        g.style.display = live ? '' : 'none';
+        g.classList.toggle('dim', !!s.focus && g.dataset.from !== s.focus && g.dataset.to !== s.focus);
+      });
+    });
+    api.signals((e) => {
+      const c = cells.get(e.id), ring = el('rect', { class: 'hot', x: c.x - 2, y: c.y - 2, width: S + 3, height: S + 3, rx: 3 });
+      fx.append(ring); setTimeout(() => ring.remove(), 380);
+    });
+  },
+});
+</script>
+</body>
+</html>

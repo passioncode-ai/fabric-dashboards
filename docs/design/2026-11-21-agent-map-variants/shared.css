@@ -1,0 +1,42 @@
+/* FD-363 step 1: the frame of the Agent map mockups. Every colour, radius, type size and duration is a role of the
+   vendored brand tokens (src/renderer/brand/fabric-tokens.css, linked by each page); no value is copied here. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--pc-bg); color: var(--pc-text); font: var(--pc-type-body)/1.45 var(--pc-font); }
+#app { max-width: 1400px; margin: 0 auto; padding: 20px 24px 40px; }
+h1 { font-size: var(--pc-type-section); margin: 12px 0 6px; }
+h2 { font-size: var(--pc-type-meta); text-transform: uppercase; letter-spacing: .06em; color: var(--pc-text-muted); margin: 0 0 8px; font-weight: 600; }
+p { margin: 0 0 6px; }
+.meta { color: var(--pc-text-muted); font-size: var(--pc-type-meta); }
+.note { max-width: 78ch; margin-top: 8px; }
+.foot { margin-top: 16px; }
+.num, .summary b { font-family: var(--pc-font-data); }
+.variants { display: flex; gap: 4px; flex-wrap: wrap; }
+.variants a { color: var(--pc-text-muted); text-decoration: none; padding: 4px 10px; border-radius: var(--pc-radius-pill); border: 1px solid transparent; }
+.variants a[aria-current] { color: var(--pc-text); border-color: var(--pc-border-strong); background: var(--pc-panel-raised); }
+.summary { display: flex; gap: 18px; flex-wrap: wrap; }
+.sev.down { color: var(--pc-negative); } .sev.degraded { color: var(--pc-warning); } .sev.setup { color: var(--pc-accent); } .sev.off { color: var(--pc-text-muted); }
+:root[data-theme="light"] .sev.setup { color: var(--pc-link); }
+.bar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
+.filter { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 2px; padding: 4px 10px; border: 1px solid var(--pc-border); border-radius: var(--pc-radius-pill); background: var(--pc-panel); font-size: var(--pc-type-meta); cursor: pointer; }
+.chip input { accent-color: var(--pc-accent); margin: 0 4px 0 0; }
+.chip .num { color: var(--pc-text-muted); }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.stage { position: relative; background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); padding: 12px; min-height: 560px; overflow: auto; }
+.side { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); padding: 14px; position: sticky; top: 12px; }
+.needs { list-style: none; margin: 0 0 18px; padding: 0; max-height: 260px; overflow: auto; }
+.row { display: grid; grid-template-columns: 18px 1fr; column-gap: 4px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--pc-radius-control); color: inherit; font: inherit; padding: 5px 6px; cursor: pointer; }
+.row .why { grid-column: 2; color: var(--pc-text-muted); font-size: var(--pc-type-meta); }
+.row:hover, .row:focus-visible { background: var(--pc-panel-raised); }
+.detail .who { font-size: var(--pc-type-card); }
+.btn { font: inherit; padding: 6px 12px; margin: 6px 6px 0 0; border-radius: var(--pc-radius-control); border: 1px solid var(--pc-accent); background: var(--pc-accent); color: var(--pc-on-accent); cursor: pointer; }
+.btn.ghost { background: none; color: var(--pc-text); border-color: var(--pc-border-strong); }
+:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: 2px; }
+svg text { font-family: var(--pc-font); fill: var(--pc-text); }
+/* Only opacity fades, and only for a pointer; a keyboard focus (#app.instant) and reduced motion change at once. */
+.fade { transition: opacity var(--pc-duration-hover) ease; }
+#app.instant .fade { transition: none; }
+.dim { opacity: .22; }
+.pulse { pointer-events: none; }
+@media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } .side { position: static; } }
+[hidden] { display: none !important; }

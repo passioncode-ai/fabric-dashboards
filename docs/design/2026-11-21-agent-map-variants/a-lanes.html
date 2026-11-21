@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карта агентов. Вариант А: дорожки</title>
+<link rel="stylesheet" href="../../../src/renderer/brand/fabric-tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .lanes { display: grid; grid-template-columns: 120px repeat(3, minmax(0, 1fr)); gap: 0; position: relative; }
+  .lanes .head { color: var(--pc-text-muted); font-size: var(--pc-type-meta); padding: 0 8px 8px; }
+  .lanes .org { padding: 10px 8px; border-top: 1px solid var(--pc-border); font-weight: 600; }
+  .lanes .org small { display: block; font-weight: 400; color: var(--pc-text-muted); }
+  .lanes .cell { padding: 8px; border-top: 1px solid var(--pc-border); border-left: 1px solid var(--pc-border); display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; min-height: 52px; }
+  .agent { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: var(--pc-radius-control); border: 1px solid var(--pc-border); background: var(--pc-panel-raised); color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; }
+  .agent.waits { border-color: var(--pc-accent); }
+  .agent.loose { border-style: dashed; }
+  .agent.on { border-color: var(--pc-text); }
+  .agent .deg { font-family: var(--pc-font-data); color: var(--pc-text-muted); }
+  .agent.flash { box-shadow: 0 0 0 2px var(--pc-info); }
+  .wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="shared.js"></script>
+<script>
+AgentMap.mount({
+  title: 'Вариант А, дорожки',
+  note: 'Строка на организацию, колонка на машину, агент стоит на своём месте всегда. В покое линий нет совсем: у агента число исходящих и входящих связей. Связи одного агента рисуются при наведении или фокусе, остальное гаснет. Каждый вызов виден как точка, которая пробегает от вызывающего к вызываемому. Ближе всего к нынешней карте, читается без обучения.',
+  render(api) {
+    const { model, el, stage } = api;
+    const grid = el('div', { class: 'lanes' });
+    grid.append(el('div', { class: 'head' }), ...model.MACHINES.map((m) => el('div', { class: 'head' }, m.name)));
+    const chips = new Map();
+    for (const org of model.ORGS) {
+      const head = el('div', { class: 'org fade', 'data-org': org.id }, org.name, el('small', {}, org.size + (org.yours ? ' · ваши' : '')));
+      grid.append(head);
+      for (const m of model.MACHINES) {
+        const cell = el('div', { class: 'cell fade', 'data-org': org.id });
+        // Worst first inside a cell, so what is broken is at the cell's start.
+        const here = model.agents.filter((a) => a.org === org.id && a.machine === m.id)
+          .sort((x, y) => (Number(y.waits) - Number(x.waits)) || model.STATE[y.state].rank - model.STATE[x.state].rank);
+        for (const a of here) {
+          const chip = el('button', { class: 'agent fade' + (a.waits ? ' waits' : '') + (a.declares || a.calledBy.length ? '' : ' loose'), ...api.agentProps(a) },
+            el('span', { style: 'color:' + (a.waits ? 'var(--pc-accent)' : model.STATE[a.state].color), 'aria-hidden': 'true' }, a.waits ? '◆' : model.STATE[a.state].mark),
+            a.name, el('span', { class: 'deg', 'aria-hidden': 'true' }, a.declares || a.calledBy.length ? '→' + a.calls.length + ' ←' + a.calledBy.length : ''));
+          chips.set(a.id, chip); cell.append(chip);
+        }
+        grid.append(cell);
+      }
+    }
+    const wires = el('svg', { class: 'wires', 'aria-hidden': 'true' });
+    grid.append(wires);
+    stage.append(grid);
+
+    const centre = (id) => {
+      const r = chips.get(id).getBoundingClientRect(), g = grid.getBoundingClientRect();
+      return { x: r.left - g.left + r.width / 2, y: r.top - g.top + r.height / 2, w: r.width };
+    };
+    const curve = (e) => {
+      const a = centre(e.from), b = centre(e.to), right = b.x >= a.x;
+      // Two agents of one column: the line leaves and arrives on the right side and bows out, so it never loops over names.
+      if (Math.abs(b.x - a.x) < 90) {
+        const xa = a.x + a.w / 2, xb = b.x + b.w / 2, out = Math.max(xa, xb) + 28 + Math.min(60, Math.abs(b.y - a.y) / 4);
+        return 'M' + xa + ',' + a.y + ' C' + out + ',' + a.y + ' ' + out + ',' + b.y + ' ' + xb + ',' + b.y;
+      }
+      const x1 = a.x + (right ? a.w / 2 : -a.w / 2), x2 = b.x + (right ? -b.w / 2 : b.w / 2), bend = Math.max(40, Math.abs(x2 - x1) / 2);
+      return 'M' + x1 + ',' + a.y + ' C' + (x1 + (right ? bend : -bend)) + ',' + a.y + ' ' + (x2 + (right ? -bend : bend)) + ',' + b.y + ' ' + x2 + ',' + b.y;
+    };
+
+    api.onChange((s) => {
+      wires.querySelectorAll('.wire').forEach((n) => n.remove());
+      grid.querySelectorAll('[data-org]').forEach((n) => { n.hidden = s.hidden.has(n.dataset.org); });
+      for (const [id, chip] of chips) { chip.classList.toggle('dim', !!s.near && !s.near.has(id)); chip.classList.toggle('on', s.focus === id); }
+      if (!s.focus) return;
+      for (const e of model.edges) {
+        if (e.from !== s.focus && e.to !== s.focus) continue;
+        if (!s.visible(model.byId.get(e.from)) || !s.visible(model.byId.get(e.to))) continue;
+        // Outgoing solid, incoming dashed; the colour is the worse state of the call and the agent reached, as today.
+        wires.append(el('path', { class: 'wire', d: curve(e), fill: 'none', stroke: model.STATE[e.state].color, 'stroke-width': 1.75, 'stroke-dasharray': e.to === s.focus ? '5 4' : null }));
+      }
+    });
+    api.signals((e) => {
+      api.travel(wires, curve(e), 'var(--pc-info)');
+      const to = chips.get(e.to);
+      setTimeout(() => { to.classList.add('flash'); setTimeout(() => to.classList.remove('flash'), 260); }, 640);
+    });
+  },
+});
+</script>
+</body>
+</html>
