@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.8.222 - 2026-11-21
+
+0.8.221 was not published; its change ships here.
+
+### Fixed
+- FD-364: an agent's dashboard no longer hangs when you come back to the window. Before, a page that had stopped
+  answering, had been signed out, or had been closed while the window was hidden stayed empty until you switched to
+  another agent and back. Now, when the window is shown again, uncovered, or the Mac wakes, the app checks the page on
+  screen: a page that does not answer within 8 seconds is restarted, a page the agent signed out is signed in again, and
+  both reopen where they were. A page closed after an hour in the background reopens with the "Opening" line, and when
+  it cannot open you see the reason and Retry instead of an empty page. A page that is well is not reloaded.
+
 ### Added
 - FD-354 step 2: on a session's page, "Open in Fabric" shows the session in Fabric while it runs, or offers to continue
   it in Fabric's console once it stopped (Fabric asks you first), and "New session in Fabric" starts a new session in

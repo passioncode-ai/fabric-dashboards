@@ -19,9 +19,17 @@ let loadFailure = false;
 /** FD-74: a status per URL, when a test needs the page and the login to answer differently. */
 let statusFor: ((url: string) => number) | null = null;
 let cacheCleared = 0;
+/** FD-364: what the service answers the page's session on a return, and the checks made. */
+let sessionStatus = 200;
+const sessionChecks: string[] = [];
 const created: FakeView[] = [];
 class FakeContents extends EventEmitter {
   url = ''; calls: string[] = []; reloads = 0; destroyed = false;
+  crashed = false; hung = false; ended = 0; repaints = 0;
+  isCrashed() { return this.crashed; }
+  invalidate() { this.repaints += 1; }
+  forcefullyCrashRenderer() { this.ended += 1; }
+  executeJavaScriptInIsolatedWorld() { return this.hung ? new Promise(() => undefined) : Promise.resolve(1); }
   navigationHistory = { canGoBack: () => true, canGoForward: () => true, goBack: () => undefined, goForward: () => undefined };
   setWindowOpenHandler() {}
   isLoading() { return false; }
@@ -52,6 +60,7 @@ const electron = {
   session: { fromPartition: () => ({
     setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, clearCache: async () => { cacheCleared += 1; },
     webRequest: { onCompleted: (_filter: unknown, callback: typeof completed) => { completed = callback; } },
+    fetch: async (url: string) => { sessionChecks.push(url); return { status: sessionStatus, body: null }; },
   }) },
 };
 const require = createRequire(import.meta.url);
@@ -76,6 +85,7 @@ after(() => { if (tokenDir) fs.rmSync(tokenDir, { recursive: true, force: true }
 
 async function fixture(t: any, login = true) {
   created.length = 0; responseStatus = 200; loadFailure = false; statusFor = null; cacheCleared = 0;
+  sessionStatus = 200; sessionChecks.length = 0;
   let logins = 0, refuse = false, release: (() => void) | undefined;
   let hold = false;
   const finish = () => { const reply = release; release = undefined; reply?.(); };
@@ -413,4 +423,83 @@ test('SCN-015: a crashed page loads again where it was, and a failed reload is a
   const error = g.events.find((e) => e.kind === 'error');
   assert.match(error?.error ?? '', /ERR_CONNECTION_REFUSED/);
   assert.equal(JSON.stringify(g.events).includes('code='), false, 'no login code in an event');
+});
+
+// FD-364 (the operator, 2026-11-21): a dashboard that hangs when the window comes back.
+const reopens = (f: { events: any[] }) => f.events.filter((e) => e.kind === 'reopen');
+
+test('FD-364: a page that is well when the window comes back is left as it is, and repainted', async (t) => {
+  const f = await fixture(t);
+  const loads = f.wc.calls.length;
+  await f.view.returned();
+  assert.deepEqual(reopens(f), []);
+  assert.equal(f.wc.calls.length, loads, 'nothing is loaded again');
+  assert.equal(f.wc.repaints, 1);
+  assert.deepEqual(sessionChecks, [`${f.origin}/dashboard`], 'the session is asked once, on the dashboard page');
+});
+
+test('FD-364: a page signed out while the window was away is opened again, signed in, where it was', async (t) => {
+  const f = await fixture(t);
+  sessionStatus = 401;
+  await f.view.returned();
+  assert.deepEqual(reopens(f), [{ key: 'fixture.default', kind: 'reopen', fresh: true }]);
+  sessionStatus = 200;
+  // The page host answers the event with a fresh show, as Retry does.
+  assert.deepEqual(await f.view.show(f.snap, RECT, undefined, 'owner', true), { ok: true });
+  assert.equal(f.logins - f.base, 1, 'signed in again');
+  assert.equal(f.wc.url, `${f.origin}/answers?tab=open#thread`);
+});
+
+test('FD-364: a page that does not answer on return has its process ended; the crash path opens it again', async (t) => {
+  const f = await fixture(t);
+  f.wc.hung = true;
+  const { RETURN_PING_MS } = await import('../src/electron/views');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const done = f.view.returned();
+  await Promise.resolve(); await Promise.resolve();
+  t.mock.timers.tick(RETURN_PING_MS);
+  await done;
+  t.mock.timers.reset();
+  assert.equal(f.wc.ended, 1);
+  assert.deepEqual(reopens(f), [], 'the crash path reloads it; no second open');
+});
+
+test('FD-364: a stopped or unloaded page is opened again on return; a page still loading is left alone', async (t) => {
+  const f = await fixture(t);
+  f.wc.crashed = true;
+  await f.view.returned();
+  assert.deepEqual(reopens(f), [{ key: 'fixture.default', kind: 'reopen', fresh: true }]);
+});
+
+test('FD-364: a page released while hidden is opened by its host on return, on the page it was on, and a service not ready then says so', async (t) => {
+  const f = await fixture(t);
+  f.view.releaseAll();
+  assert.deepEqual(f.view.keys(), []);
+  await f.view.returned();
+  assert.deepEqual(reopens(f), [{ key: 'fixture.default', kind: 'reopen' }]);
+  // Not ready at that moment: the host hears a refusal (it shows it with Retry), never an empty page with no word.
+  const down = { ...f.snap, state: 'down' } as ServiceSnapshot;
+  assert.deepEqual(await f.view.show(down, RECT, undefined, 'owner'), { ok: false, error: 'unavailable', stage: 'page' });
+  // Retry, the service answering again: the page it was on, not the dashboard's home.
+  assert.deepEqual(await f.view.show(f.snap, RECT, undefined, 'owner', true), { ok: true });
+  assert.equal(created.at(-1)!.webContents.url, `${f.origin}/answers?tab=open#thread`);
+});
+
+test('FD-364: several signals of one return make one check', async (t) => {
+  const f = await fixture(t);
+  await Promise.all([f.view.returned(), f.view.returned()]);
+  await f.view.returned();
+  assert.equal(sessionChecks.length, 1);
+});
+
+test('FD-364: a window uncovered again and again asks the service about the session once a minute', async (t) => {
+  const f = await fixture(t);
+  await f.view.returned(true);
+  (f.view as any).returnedAt = 0;
+  await f.view.returned(true);
+  assert.equal(sessionChecks.length, 1, 'the second uncover within a minute asks nothing');
+  assert.equal(f.wc.repaints, 2, 'the page itself is still checked');
+  (f.view as any).returnedAt = 0;
+  await f.view.returned();
+  assert.equal(sessionChecks.length, 2, 'a window shown again always asks');
 });

@@ -444,13 +444,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User switches to another service and back -> system shows the same page, scrolled and filled as it was; a link from a notification or another agent is applied once, so a tab switch afterwards keeps the page the person moved to
   2. The service restarts (a new version, a crash) -> the page on screen signs in again and reloads where it was, by itself; the toolbar says "Restarted; the page reloaded." for a moment; a page off screen reloads where it was the next time it is shown (FD-74); an HTTP failure shows Retry (SCN-039)
   3. User comes back to a page whose view was closed (the window was hidden, or the page crashed) -> it opens at once, without a new sign-in, while the same service process signed this app in less than 30 minutes ago; a page or a request of it that is refused then signs in once, on the same page (FD-74)
+  4. User comes back to the window (shown again, restored, uncovered, the Mac woke or the screen was unlocked) -> the app checks the page on screen once: a page that does not answer within 8 seconds is ended and opens again where it was; a page the service signed out signs in again and reloads where it was; a page released while the window was hidden opens again with "Opening…" where it was, and when it cannot open the person sees the reason and Retry, never an empty page; a page that is well is left as it is, not reloaded (FD-364)
 - **Expected result:** one live view per service, never duplicated; a page the person comes back to opens at once and shows the agent's current version
 - **UI elements:** embedded page, "Restarted; the page reloaded." in the toolbar
 - **Alt paths:** the session ended while the page was open (the service answers 401) -> the app signs in again by itself, once a minute at most, and reopens the same page (ADR-0014); the window stays hidden for 5 minutes -> every dashboard is released except the two shown last, which open at once when the window shows again; after an hour hidden those two are released as well, and showing the window again reopens the one that was on screen, on its page (FD-74)
 - **States covered:** success
 - **Errors & recovery:** the page crashes -> the app recreates it once (another recreate only after the page stayed up 60 s), then shows "The page stopped." with Reload
 - **Status:** validated
-- **Coverage:** src/electron/views.ts, src/electron/policy.ts (ViewSlot, resumePath), src/renderer/components/ServiceView.tsx (DashboardHost), test/viewslot.test.ts, test/e2e/app.test.ts
+- **Coverage:** src/electron/views.ts, src/electron/policy.ts (ViewSlot, resumePath), src/renderer/components/ServiceView.tsx (DashboardHost), test/viewslot.test.ts, test/e2e/app.test.ts, test/dashboard-refresh.test.ts (*FD-364*), test/e2e/view-return.test.ts
 - **Product:** unobserved
 
 ### SCN-016: Dashboard cannot sign in

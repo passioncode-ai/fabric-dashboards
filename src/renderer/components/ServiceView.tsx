@@ -352,6 +352,9 @@ function DashboardHost({ s, link, nonce, hidden, applied, act, openLogs }: { s: 
     if (e.kind === 'crashed') { fresh.current = true; setPhase('crashed'); void api().hideView(owner); }
     // A page that failed to load: the view is hidden, so this message is what shows (R-6).
     if (e.kind === 'error') { fresh.current = true; setPhase('error'); setError({ text: e.error ?? '', stage: 'page' }); void api().hideView(owner); }
+    // FD-364: the window came back and the page was released, stopped or signed out: open it again as any open is,
+    // with the opening line, and an error with Retry when it fails.
+    if (e.kind === 'reopen') { if (e.fresh) fresh.current = true; setAttempt((n) => n + 1); }
   }), [s.key]);
 
   const reload = () => { fresh.current = true; setAttempt((n) => n + 1); };

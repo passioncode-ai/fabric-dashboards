@@ -189,7 +189,7 @@ export interface FabricApi {
   fabricButton(key: string): Promise<'direct' | 'absent' | 'none'>;
   /** FD-45: press it. The main process opens the `fabric://` link, or a native menu under `anchor` (window coordinates, CSS px). */
   fabricPress(key: string, anchor: { x: number; y: number }): Promise<{ opened: 'fabric' | 'menu' | 'none' }>;
-  onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void): () => void;
+  onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated' | 'reopen'; error?: string; page?: PageState; fresh?: boolean }) => void): () => void;
   onNavigate(listener: (target: NavTarget) => void): () => void;
   /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
   takeNavigation(): Promise<NavTarget | null>;
