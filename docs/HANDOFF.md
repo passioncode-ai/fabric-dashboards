@@ -27,13 +27,14 @@ test; both fold into 0.8.108).
   (`grep -c` printed 0); `node scripts/check-regions.mjs`: PASS, 312 markers. Not run: `npm run check` (no code, test or
   string changed, and no `node_modules` in the checkout) and step 0's skills update (run twice earlier today, sections
   below).
-- Open: Q-1, Q-2 and Q-4 are the contract's and Q-3 Observatory's; they were not sent to the board in this run. The
-  reply the system plan expects on thread `878c04b6` by 2026-11-25 was given by the board run that filed FD-359 to
-  FD-362.
+- Open: Q-1, Q-2 and Q-4 went to fabric-agent-contract as board request `d8b66698` (thread `7291bbf5`) and Q-3 to
+  project-observatory as `9ee5db91` (thread `48923cc7`), both with a deadline of 2026-11-28; neither project has a
+  responder online, so the answers come when their sessions read the board. The reply the system plan expects on
+  thread `878c04b6` by 2026-11-25 was given by the board run that filed FD-359 to FD-362.
 - Next task: ask `fabric_effect_request` for `v0.8.223` again and, once allowed, do the release steps of the section
   below. Then, by date: FD-363 step 1 (2026-11-26), FD-357 and FD-358 parts (1) (2026-11-27; free disk first, the
-  sentry's floor is 12 GB). Send Q-1, Q-2 and Q-4 to fabric-agent-contract and Q-3 to project-observatory as one board
-  request each (`com.submit`), linked to FD-359. FD-356 part (3) waits for SB-582.
+  sentry's floor is 12 GB). Read the answers on the two threads and revise the design's mapping with them. FD-356
+  part (3) waits for SB-582.
 
 ## 0.8.223 (prepared, not tagged): This Mac's Running and Waiting figures are Switchboard's counts (FD-356 part 2) (2026-11-21)
 
