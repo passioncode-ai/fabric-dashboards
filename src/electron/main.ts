@@ -1,7 +1,7 @@
 // Fabric Dashboards main process. Built like Fabric Inbox's shell: one main
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, net, Notification, session, shell, systemPreferences } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, net, Notification, powerMonitor, session, shell, systemPreferences } from 'electron';
 import { joinLink } from '../core/join';
 import { pathToFileURL } from 'node:url';
 import { guardIpc } from './ipc-guard';
@@ -586,7 +586,7 @@ if (!app.requestSingleInstanceLock()) {
       void w?.webContents.executeJavaScript('document.visibilityState').then((v: unknown) => seePage(v === 'visible'), () => undefined);
     }, PAGE_SIGHT_CHECK_MS);
     pushStatus();
-    void views?.resume((key) => monitor.snapshot(key)).then(() => views?.announce());
+    void views?.returned(); // FD-364: the page on screen is checked, and opened again when it is not well
   }
   function windowHidden(): void {
     hiddenSince ??= Date.now();
@@ -612,6 +612,10 @@ if (!app.requestSingleInstanceLock()) {
   const syncVisibility = () => { if (visibility.sync()) log(`window ${windowVisible() ? 'shown' : 'hidden'} without a window event (FD-64)`); };
   app.on('did-resign-active', () => setTimeout(syncVisibility, 500));
   app.on('did-become-active', () => setTimeout(syncVisibility, 500));
+  // FD-364: a Mac that slept, or a screen that was locked, sends the window no event: the page on screen is checked then too.
+  const backFromSleep = (what: string) => { if (!windowVisible()) return; log(`${what}: the dashboard on screen is checked (FD-364)`); setTimeout(() => void views?.returned(), 1500); };
+  powerMonitor.on('resume', () => backFromSleep('the Mac woke'));
+  powerMonitor.on('unlock-screen', () => backFromSleep('the screen was unlocked'));
   // FD-80: covering and uncovering the window fire no event either; only the update's grace follows it.
   const sight = new VisibilitySync(windowSeen, () => { updateGrace.shown(); if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; } }, () => updateGrace.hidden(), false);
   // #region page-sight — docs: AGENTS.md#lifecycle
@@ -622,6 +626,8 @@ if (!app.requestSingleInstanceLock()) {
       monitor.setVisible(monitorLive(true, seen, occlusion));
       log(`window ${seen ? 'seen again' : 'covered by other windows or on another Space'}: the monitor follows (FD-276)`);
     }
+    // FD-364: uncovered, or back on this Space: the same check as a window shown again (a hide the events missed).
+    if (seen && windowVisible()) void views?.returned(true);
     syncSight();
   }
   // #endregion page-sight

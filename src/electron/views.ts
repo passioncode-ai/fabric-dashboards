@@ -28,6 +28,18 @@ export const WARM_SESSION_MS = 30 * 60_000;
 /** FD-74: after such a direct open, a 401 from the page's own requests (fetch, XHR) this soon signs it in. */
 const DIRECT_WATCH_MS = 15_000;
 // #endregion warm-session
+// #region view-return — docs: docs/ux/scenarios.md#scn-015-dashboard-view-keeps-its-place
+/** FD-364: when the window comes back, the page on screen is asked one thing in its own process; no answer within this
+ *  long is a page that stopped (its process is ended, and the crash path opens the page again where it was). */
+export const RETURN_PING_MS = 8_000;
+/** FD-364: the sign-in check on return (one GET of the dashboard's own page with the page's session) waits this long;
+ *  a slow or failed answer changes nothing, only a refusal (401, 403) signs the page in again. */
+export const RETURN_SESSION_MS = 5_000;
+/** FD-364: several signals report one return (show, restore, the visibility sync, a wake): one check per this long. */
+export const RETURN_EVERY_MS = 3_000;
+/** FD-364: a window uncovered many times a minute asks a service about its session at most this often. */
+export const RETURN_SESSION_EVERY_MS = 60_000;
+// #endregion view-return
 
 
 /** What showing a dashboard came to; `stage` tells a sign-in that failed from a page that would not load. */
@@ -43,7 +55,9 @@ interface Entry { view: WebContentsView; origin: string; crashes: number; loaded
   /** FD-74: where a page left behind by a service restart reopens when it is shown again. */
   resumeLink?: string;
   /** FD-221: the colour schemes the loaded page declares, as `PAGE_SCHEME_SCRIPT` read them. */
-  pageSchemes?: string | null }
+  pageSchemes?: string | null;
+  /** FD-364: when the service was last asked about this page's session on a return. */
+  sessionAskedAt?: number }
 
 
 export class ServiceViews {
@@ -58,6 +72,10 @@ export class ServiceViews {
   private released: { key: string; owner: string; rect: Rect; link?: string } | null = null;
   /** FD-74: the service process that last signed each view in, and when. Kept across a dropped view. */
   private readonly signedIn = new Map<string, { pid: number; origin: string; at: number }>();
+  /** FD-364: shows in flight (a return's check leaves a page that is still opening alone), and the last check. */
+  private showing = 0;
+  private returnedAt = 0;
+  private returning = false;
 
   /** FD-92: called after a dashboard view is added, so the console drawer goes back on top of it. */
   afterAttach: () => void = () => undefined;
@@ -65,7 +83,7 @@ export class ServiceViews {
   constructor(
     private readonly window: BrowserWindow,
     private readonly lang: () => Lang,
-    private readonly emit: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void,
+    private readonly emit: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated' | 'reopen'; error?: string; page?: PageState; fresh?: boolean }) => void,
     /** ADR-0016: a link to another service, handed to the app's deep-link check. */
     private readonly appLink: (raw: string) => void = () => undefined,
     /** The origins of every registered service, for routeLink. */
@@ -364,6 +382,11 @@ export class ServiceViews {
   /** Show a service's view for the dashboard host `owner`. A show overtaken while it loaded — by a
    *  newer show or a hide — returns without attaching, so a slow page never covers the current one. */
   async show(snap: ServiceSnapshot, rect: Rect, link: string | undefined, owner: string, fresh = false): Promise<ShowResult> {
+    this.showing += 1;
+    try { return await this.showNow(snap, rect, link, owner, fresh); } finally { this.showing -= 1; }
+  }
+
+  private async showNow(snap: ServiceSnapshot, rect: Rect, link: string | undefined, owner: string, fresh: boolean): Promise<ShowResult> {
     this.refreshes.delete(snap.key);
     const ticket = this.slot.request(owner, snap.key);
     if (!snap.descriptor || !snap.wellKnown || (snap.state !== 'ready' && snap.state !== 'degraded')) {
@@ -385,6 +408,8 @@ export class ServiceViews {
     // FD-74: a page a service restart left behind reopens where it was, freshly loaded.
     if (entry && !entry.loadedOnce && link === undefined && entry.resumeLink) link = entry.resumeLink;
     if (entry) entry.resumeLink = undefined;
+    // FD-364: a page released while the window was hidden opens again where it was, whoever asks for it first.
+    if (!entry && link === undefined && this.released?.key === snap.key) link = this.released.link;
     await this.fabricCookie(snap.key, snap.descriptor.origin);
     await this.appearanceCookie(snap.key, snap.descriptor.origin);
     if (!entry || !entry.loadedOnce) {
@@ -439,17 +464,89 @@ export class ServiceViews {
     for (const k of [...this.views.keys()]) this.drop(k);
   }
 
-  /** The window is shown again: re-open the released view for the host that still holds the slot. */
-  async resume(snapshotFor: (key: string) => ServiceSnapshot | null): Promise<void> {
-    const r = this.released;
-    this.released = null;
-    if (!r || this.slot.owner() !== r.owner || this.slot.wanted() !== r.key) return;
-    const snap = snapshotFor(r.key);
-    if (!snap) return;
-    // T-11: a show that fails here has no caller waiting; the page host hears it as an error.
-    const result = await this.show(snap, r.rect, r.link, r.owner);
-    if (!result.ok && result.error !== 'unavailable') this.emit({ key: r.key, kind: 'error', error: result.error });
+  // #region view-return — docs: docs/ux/scenarios.md#scn-015-dashboard-view-keeps-its-place
+  /** FD-364 (the operator, 2026-11-21: «когда в дашборд возвращаюсь … он там висит, как будто бы там не может
+   *  загрузиться. Меняю агента одного на второго и он загружается»): the window is in front of the person again (shown,
+   *  restored, uncovered, the Mac woke). A page released while it was hidden is opened again by its host, as any open is:
+   *  with the opening line, an error and Retry (it was reopened here with nothing on screen, and a service not ready at
+   *  that moment left an empty page). A page that stayed is checked: not loaded, not on screen, its process gone or not
+   *  answering, or signed out, and it is opened again where it was. Nothing is reloaded when the page is well.
+   *  `often`: a signal that comes many times a minute (a window uncovered) asks about the session once a minute. */
+  async returned(often = false): Promise<void> {
+    const now = Date.now();
+    if (this.returning || now - this.returnedAt < RETURN_EVERY_MS) return;
+    this.returning = true;
+    this.returnedAt = now;
+    try {
+      const r = this.released;
+      if (r) {
+        this.log(`dashboard: ${r.key} released while hidden, opened again on return (FD-364)`);
+        this.emit({ key: r.key, kind: 'reopen' });
+        return;
+      }
+      const key = this.shown ?? this.slot.wanted();
+      if (!key || this.showing > 0 || this.refreshes.has(key)) return;
+      const found = await this.unwell(key, often);
+      if (!found || this.showing > 0 || this.refreshes.has(key)) return;
+      if ((this.shown ?? this.slot.wanted()) !== key) return;
+      this.log(`dashboard: ${key} ${found.why} on return, opened again (FD-364)`);
+      if (found.end) {
+        // A page that does not answer cannot navigate either: end its process; the crash path opens it again where it was.
+        const entry = this.views.get(key);
+        try { entry?.view.webContents.forcefullyCrashRenderer(); } catch { this.emit({ key, kind: 'reopen', fresh: true }); }
+        return;
+      }
+      this.emit({ key, kind: 'reopen', fresh: found.fresh });
+    } finally {
+      this.returning = false;
+      this.announce();
+    }
   }
+
+  /** What is wrong with the page a host wants on screen, or null when it is well. */
+  private async unwell(key: string, often: boolean): Promise<{ why: string; fresh: boolean; end?: boolean } | null> {
+    const entry = this.views.get(key);
+    if (!entry || viewGone(entry.view)) return this.live(key) ? { why: 'had no page', fresh: false } : null; // not ready: the monitor's state says why
+    const wc = entry.view.webContents;
+    if (wc.isCrashed()) return { why: 'had stopped', fresh: true };
+    if (!entry.loadedOnce) return wc.isLoading() ? null : { why: 'was not loaded', fresh: true };
+    if (this.shown !== key) return { why: 'was not on screen', fresh: false };
+    let timer: NodeJS.Timeout | undefined;
+    const answered = await Promise.race([
+      wc.executeJavaScriptInIsolatedWorld(FIT_WORLD, [{ code: '1' }]).then(() => true, () => true), // a refusal is an answer
+      new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), RETURN_PING_MS); }),
+    ]);
+    if (timer) clearTimeout(timer);
+    if (this.views.get(key) !== entry || viewGone(entry.view)) return null;
+    if (!answered) return { why: `did not answer within ${RETURN_PING_MS / 1000} s`, fresh: true, end: true };
+    try { wc.invalidate(); } catch { /* a page that cannot repaint now paints at its next frame */ } // a frame dropped while hidden
+    if (await this.signedOut(key, entry, often)) return { why: 'was signed out', fresh: true };
+    return null;
+  }
+
+  /** FD-364: whether the service refuses the page's session now. Asked with the page's own cookies, in its partition,
+   *  after the same owner check a page load makes (FD-159); only a service that signs in is asked. */
+  private async signedOut(key: string, entry: Entry, often: boolean): Promise<boolean> {
+    const snap = this.live(key);
+    if (!snap?.wellKnown?.surfaces.dashboard?.login || snap.descriptor!.origin !== entry.origin) return false;
+    if (often && Date.now() - (entry.sessionAskedAt ?? 0) < RETURN_SESSION_EVERY_MS) return false;
+    if (!(await this.ownerOk(entry.origin))) return false;
+    entry.sessionAskedAt = Date.now();
+    const ses = session.fromPartition(partitionFor(key));
+    if (typeof ses.fetch !== 'function') return false;
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), RETURN_SESSION_MS);
+    try {
+      const res = await ses.fetch(resolveLink(entry.origin, undefined, entry.dashboardPath), { method: 'GET', credentials: 'include', redirect: 'manual', cache: 'no-store', signal: stop.signal });
+      try { await res.body?.cancel(); } catch { /* nothing to drop */ }
+      return res.status === 401 || res.status === 403;
+    } catch {
+      return false; // not answering is the monitor's to say, not a reason to sign in
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  // #endregion view-return
 
   private detach(key: string): void {
     const entry = this.views.get(key);
