@@ -2,7 +2,7 @@
 // FD-103 (dossier node S3): how the Sessions mode words a row. Pure (no DOM, no Electron), so the sidebar, the All
 // sessions page, the session page, the tray and the notification say the same words, and a test reads them.
 import { t, type Lang } from './i18n';
-import { GROUP_ORDER, type RemoteMachineStatus, type SessionGroup, type SessionRow } from './sessions';
+import { GROUP_ORDER, type RemoteMachineStatus, type SbPageCounts, type SessionGroup, type SessionRow } from './sessions';
 
 /** The coding agent's name as a person reads it. */
 export function agentName(agent: string): string {
@@ -133,7 +133,21 @@ export function filterListRows(rows: readonly SessionListRow[], f: { machines?: 
 
 /** SCN-077 step 4: what the switch's badge counts. */
 export const waitingForYou = (rows: readonly SessionRow[]): number => rows.filter((r) => r.group === 'needs-you').length;
-export const runningCount = (rows: readonly SessionRow[]): number => rows.filter((r) => r.group === 'running').length;
+// #region sessions-page-counts — docs: docs/ux/scenarios.md#scn-078-see-every-coding-session-in-one-place
+/** FD-356 part 2 (Switchboard's answer `3bfdf99b`: show `counts` without regrouping): the figure a group's heading says
+ *  for this Mac. Running and Waiting are Switchboard's own count plus this app's consoles its page does not list
+ *  (`unlisted`); Needs you and Ended stay the rows listed here, each of which the person can act on (FD-108). Without
+ *  `counts` (no Switchboard, one without the page, another machine, a filter or a search) it is the rows shown. */
+export function groupFigure(group: SessionGroup, inGroup: readonly SessionRow[], counts?: SbPageCounts | null): number {
+  if (!counts || (group !== 'running' && group !== 'waiting')) return inGroup.length;
+  return counts[group] + inGroup.filter((r) => r.unlisted === true).length;
+}
+/** What runs: this Mac's figure (`groupFigure`) and every other machine's running rows. */
+export const runningCount = (rows: readonly SessionRow[], counts?: SbPageCounts | null): number => {
+  const running = rows.filter((r) => r.group === 'running');
+  return groupFigure('running', running.filter((r) => !r.machine), counts) + running.filter((r) => r.machine).length;
+};
+// #endregion sessions-page-counts
 
 /** SCN-078 step 2: the second line of a row, "Claude Code · claude4 · handed over · 14:02". */
 export function secondLine(lang: Lang, r: SessionRow): string {
@@ -252,8 +266,8 @@ export function revealLabel(lang: Lang, platform: 'mac' | 'windows' | 'other'): 
 }
 
 /** SCN-085: the tray's Sessions line, a part at zero left out; null when nothing runs or waits. */
-export function traySessionsLine(lang: Lang, rows: readonly SessionRow[]): string | null {
-  const running = runningCount(rows);
+export function traySessionsLine(lang: Lang, rows: readonly SessionRow[], counts?: SbPageCounts | null): string | null {
+  const running = runningCount(rows, counts);
   const waiting = waitingForYou(rows);
   if (running && waiting) return t(lang, 'tray.sessions.both', { running, waiting });
   if (running) return t(lang, 'tray.sessions.running', { running });

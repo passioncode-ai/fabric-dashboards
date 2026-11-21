@@ -5,7 +5,7 @@ import path from 'node:path';
 import { t, type Lang } from '../core/i18n';
 import { trayMenuModel, type TrayItem } from '../core/tray-model';
 import { traySessionsLine } from '../core/sessions-view';
-import type { SessionRow } from '../core/sessions';
+import type { SbPageCounts, SessionRow } from '../core/sessions';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { attentionQueue, urgent } from '../core/attention';
 import { waitsForSetup } from '../core/setup-wait';
@@ -54,12 +54,12 @@ export class AppTray {
     this.tray.setToolTip('Fabric Dashboards');
   }
 
-  update(services: ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}, sessions: readonly SessionRow[] = []): void {
+  update(services: ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}, sessions: readonly SessionRow[] = [], counts: SbPageCounts | null = null): void {
     const lang = this.lang();
     const level = trayLevel(services, limits, sessions);
     // W2 (UX-04): the headline and the first items are the attention queue Overview, the sidebar and the Dock count.
     const model = trayMenuModel(services, { now: Date.now(), limits, lang, hidden: this.actions.hidden() });
-    const sessionsLine = traySessionsLine(lang, sessions);
+    const sessionsLine = traySessionsLine(lang, sessions, counts); // FD-356 part 2: this Mac's figure is Switchboard's
     const signature = JSON.stringify([lang, level, this.actions.paused(), model, sessionsLine]);
     if (signature === this.shown) return;
     this.shown = signature;

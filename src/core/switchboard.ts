@@ -8,7 +8,7 @@ import type { Runner } from '@passioncode-ai/fabric-service-host';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { RuntimeSpec } from './runtimes';
-import type { LaunchFacts, Paid, SbMachineProcess, SbPageRow, SbSessionRecord, SourceResult } from './sessions';
+import type { LaunchFacts, Paid, SbMachineProcess, SbPageCounts, SbPageRow, SbSessionRecord, SourceResult } from './sessions';
 
 /** FD-305 (decision D-3): what a feature probe's answer is cached by: the binary's path and modification time, so a
  *  Switchboard updated in place is asked again; a path that cannot be read stands alone and is asked again next time. */
@@ -380,6 +380,22 @@ export async function machineSessionsOf(run: Runner, sb: string): Promise<Source
 /** FD-291 step 2 (SB-395, Switchboard 0.7.111): this Mac's sessions page (`sessions --rows`), the groups decided by
  *  Switchboard: its own processes waiting on a limit included, which `--machine` called running. A Switchboard without
  *  the flag is `unsupported` (the caller reads `--machine` instead); the rows are capped like another machine's. */
+/** FD-356 part 2: the page's `counts` (running, waiting, needs_you), each a whole number from 0 to 100000; null when the
+ *  answer has none or one is not such a number, so a figure is never made from half an answer. */
+export function parsePageCounts(data: Record<string, unknown>): SbPageCounts | null {
+  const c = data.counts;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 100_000 ? v : null);
+  const x = c as Record<string, unknown>;
+  const running = n(x.running), waiting = n(x.waiting), needsYou = n(x.needs_you);
+  return running === null || waiting === null || needsYou === null ? null : { running, waiting, needsYou };
+}
+/** FD-356 part 2: the page with its `counts` in one read (`pageRowsOf` keeps answering the rows alone). */
+export async function pageOf(run: Runner, sb: string): Promise<SourceResult<{ rows: SbPageRow[]; counts: SbPageCounts | null }> | { ok: false; reason: 'unsupported' }> {
+  let counts: SbPageCounts | null = null;
+  const r = await pageRowsOf(async (c, a, t) => { const out = await run(c, a, t); const data = out.code === 0 ? parse(out.stdout) : null; counts = data ? parsePageCounts(data) : null; return out; }, sb);
+  return r.ok ? { ok: true, value: { rows: r.value, counts } } : r;
+}
 export async function pageRowsOf(run: Runner, sb: string): Promise<SourceResult<SbPageRow[]> | { ok: false; reason: 'unsupported' }> {
   const r = await run(sb, ['--json', 'sessions', '--rows'], 10_000);
   const text = `${r.stdout}\n${r.stderr}`;

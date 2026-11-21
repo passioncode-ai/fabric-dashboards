@@ -8,7 +8,7 @@ import type { DuplicateSession } from '../../core/duplicate-sessions';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
 import type { TranscriptAnswer } from '../../core/transcript';
 import { newInFabric, openInFabric, type FabricOpenResult } from '../../core/fabric-session-link';
-import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, accountWords, tableStateWords, type SessionFilter } from '../../core/sessions-view';
+import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupFigure, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, accountWords, tableStateWords, type SessionFilter } from '../../core/sessions-view';
 import { GROUP_ORDER } from '../../core/sessions';
 import { api, useT } from '../lib';
 import { SESSION_MARK, SessionMark } from './Navigation';
@@ -237,7 +237,8 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
   const groupsOf = (list: SessionRow[], stale: boolean, scope: string) => groupRows(list).map(({ group, rows: inGroup }) => {
     // Under a machine's heading a state is a level lower; with one Mac it is the page's first level, as before.
     const H = several ? 'h3' : 'h2';
-    const heading = t(`sessions.group.${group}`, { n: inGroup.length });
+    // FD-356 part 2: this Mac's Running and Waiting figures are Switchboard's own counts; a search or a filter counts what it found.
+    const heading = t(`sessions.group.${group}`, { n: groupFigure(group, inGroup, scope === 'here' && !filtering ? sessions?.counts : null) });
     // A search or a filter shows what it found: the Ended group unfolds while one is on.
     const folded = group === 'ended' && !endedOpen && !filtering;
     const id = `sg-${scope}-${group}`;
