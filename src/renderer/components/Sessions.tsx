@@ -98,7 +98,7 @@ export function SessionActions({ row, place, open, askEnd, continued, onMenu }: 
   };
   const size = { cols: 100, rows: 30 };
   const has = (a: SessionRow['actions'][number]) => row.actions.includes(a);
-  const waitingNoCandidate = row.state === 'waiting-reset' && row.reason !== 'limit-terminal' && !has('continueNow');
+  const waitingNoCandidate = row.state === 'waiting-reset' && row.reason !== 'limit-terminal' && row.reason !== 'limit-launch' && !has('continueNow');
   const buttons = [
     has('openConsole') && place === 'card' && <button key="open" className="btn btn-sm btn-primary" onClick={() => open(row.id)}>{t('sessions.openConsole')}</button>,
     has('continue') && <button key="continue" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void run('continue', () => api().sessionsContinue(row.id, size))}>{continueLabel(lang, row)}</button>,
@@ -526,6 +526,8 @@ export function SessionBody({ row, autoContinue = true }: { row: SessionRow; aut
   if (row.state === 'running-unmanaged') return <div className="page session-body"><p>{t('sessions.inMachine')}</p></div>; // FD-231
   // FD-291 step 2: a session started by hand that Switchboard reads as stopped by a limit waits in its own terminal.
   if (row.reason === 'limit-terminal') return <div className="page session-body"><p>{t('sessions.body.limitTerminal')}</p></div>;
+  // FD-356: a launch of Switchboard that its sessions page reads as stopped by a limit waits where it runs.
+  if (row.reason === 'limit-launch') return <div className="page session-body"><p>{t('sessions.body.limitLaunch')}</p></div>;
   if (row.state === 'waiting-own') return <div className="page session-body"><p>{t('sessions.body.waitingOwn')}</p></div>; // FD-352
   // FD-108: a limit stop that cannot be continued here never had a console of this app: its card says why, its page that
   // nothing of it runs here and that Remove takes it off the list.

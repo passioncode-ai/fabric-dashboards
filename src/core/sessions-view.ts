@@ -180,6 +180,7 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
       return r.ownWait?.until ? t(lang, 'sessions.state.waiting-own', { time: clock(lang, r.ownWait.until) }) : t(lang, 'sessions.state.waiting-own.open');
     case 'waiting-reset':
       if (r.reason === 'limit-terminal') return t(lang, 'sessions.state.limitTerminal'); // FD-291 step 2: not this app's to continue
+      if (r.reason === 'limit-launch') return t(lang, 'sessions.state.limitLaunch'); // FD-356: Switchboard's launch, waiting where it runs
       if (o.autoContinue === false) return t(lang, 'sessions.state.autoOff');
       return r.expectedAt ? t(lang, 'sessions.state.waitingAt', { time: clock(lang, r.expectedAt) }) : t(lang, 'sessions.state.waiting');
     case 'ended':

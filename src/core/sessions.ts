@@ -53,7 +53,10 @@ export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'bu
   // FD-291: a row another machine's Switchboard puts in its needs-you group (SB-395), said as that machine's
   | 'remote-ready' | 'remote-gone' | 'remote-twice' | 'remote-stuck' | 'remote-needs'
   // FD-291 step 2: a process on this Mac no owner started that Switchboard reads as stopped by a limit (`sessions --rows`)
-  | 'limit-terminal';
+  | 'limit-terminal'
+  // FD-356: a launch of this Mac's Switchboard that its sessions page puts in waiting on a limit (`limit-launch`) or in
+  // its needs-you group, said in this Mac's words
+  | 'limit-launch' | 'page-ready' | 'page-gone' | 'page-twice' | 'page-stuck' | 'page-needs';
 
 export interface SessionRow {
   /** Stable across polls and restarts: `c:<console key>:<start>`, `sb:<provider>:<pool>:<launch>:<folder>` (F5 of FIX-2:
@@ -575,12 +578,44 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
   // the page gives it (Open here, End), each one of Switchboard's doors.
   const pageActs = new Map<string, string[]>();
   for (const p of i.page ?? []) if (p.id.startsWith('launch:') && p.launchId) pageActs.set(p.launchId, p.acts);
+  // #region sessions-page-groups — docs: docs/ux/scenarios.md#scn-078-see-every-coding-session-in-one-place
+  // FD-356 part 1 (Switchboard's answer `3bfdf99b`: the row's `group` is the one definition): a launch the page lists as
+  // waiting or needing the person is that here too, whatever its launch record still says. A `stop:` row is the
+  // recovery list's (step 4). A launch the page lists twice is one row here, by the group that asks most of the person.
+  const PAGE_RANK = { needs_you: 3, waiting: 2, running: 1, ended: 0 } as const;
+  const pageOf = new Map<string, SbPageRow>();
+  for (const p of i.page ?? []) {
+    if (!p.launchId || p.group === 'ended' || p.id.startsWith('stop:')) continue;
+    const was = pageOf.get(p.launchId);
+    if (!was || PAGE_RANK[p.group] > PAGE_RANK[was.group]) pageOf.set(p.launchId, p);
+  }
+  // #endregion sessions-page-groups
   for (const s of sb) {
     if (used.has(s)) continue;
     const endedThere = s.launch?.launchId ? pageEnded.get(s.launch.launchId) : undefined;
     const running = endedThere === undefined && (s.state === 'running' || s.state === 'starting' || s.state === 'unknown');
     const started = s.launchedAt ?? s.startedAt;
     if (!running && !fresh(started, i.now)) continue; // ended more than a day ago, as far as can be told
+    const there = running && s.launch?.launchId ? pageOf.get(s.launch.launchId) : undefined;
+    if (there && there.group !== 'running') {
+      // FD-356: the page's group, in this Mac's words. The acts are the page's (FD-337), its folder, and Remove for a
+      // row that needs the person; a wait on a limit here is not this app's to continue or decline.
+      const own = there.group === 'waiting' && there.why === 'monitoring';
+      const needs = there.group === 'needs_you';
+      const live = LAUNCH_RE.test(s.launch!.launchId!);
+      const r = row({
+        id: sbRowId(s), key: null, folder: s.folder, agent: s.agent,
+        actions: [...(live && there.acts.includes('attach') ? ['attach' as const] : []), ...(live && there.acts.includes('end') ? ['end' as const] : []), 'reveal', ...(needs ? ['dismiss' as const] : [])],
+        account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard',
+        state: needs ? 'needs-you-not-opened' : own ? 'waiting-own' : 'waiting-reset',
+        reason: !needs ? (own ? null : 'limit-launch')
+          : there.why === 'ready_to_continue' ? 'page-ready' : there.why === 'gone' ? 'page-gone' : there.why === 'duplicate' ? 'page-twice' : there.why === 'stuck' ? 'page-stuck' : 'page-needs',
+        startedAt: started, endedAt: null, launch: s.launch, expectedAt: !needs && !own ? there.probeAt : null,
+      });
+      if (own) r.ownWait = { until: there.wait?.until ?? null, held: there.wait?.held === true };
+      add(r);
+      continue;
+    }
     // FD-211: a session a host holds opens here, beside what its state offers.
     const state: SessionState = running ? (isBackground(s) ? 'running-background' : 'running-terminal') : 'ended';
     add(row({

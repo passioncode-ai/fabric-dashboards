@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+- FD-356 part 1: All sessions no longer counts as running a session that Switchboard shows as waiting or as needing
+  you. A session Switchboard launched on this computer is now listed in the group Switchboard's own sessions page puts
+  it in: one waiting on its own timer is under Waiting, one stopped by a limit reads "Stopped by a limit, waits where
+  it runs", and one whose process ended without a recorded end, that runs twice, or that has gone quiet on a board run
+  is under Needs you with the reason in words. Before, all of these stayed under Running, so the Running figure here
+  was higher than Switchboard's (9 against 7 when measured on 2026-11-21).
+
 ## 0.8.222 - 2026-11-21
 
 0.8.221 was not published; its change ships here.

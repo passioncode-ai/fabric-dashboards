@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost, transcriptFile } from '../src/electron/console';
-import { consoleRowId, mergeSessions, processRowId, pruneRecords, SESSION_KEEP_MS, SourceReader, type MergeInput, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionNotice, type SessionRecord } from '../src/core/sessions';
+import { consoleRowId, mergeSessions, processRowId, pruneRecords, SESSION_KEEP_MS, SourceReader, type MergeInput, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionNotice, type SessionRecord, type SessionRow } from '../src/core/sessions';
 import { allSessionsOf, handoversSwitch, isHandoverKey, machineSessionsOf, pageRowsOf } from '../src/core/switchboard';
 import { projectName, stateWords } from '../src/core/sessions-view';
 import { SettingsStore } from '../src/core/settings';
@@ -664,6 +664,84 @@ test('FD-291 step 2: a launch the page reads as ended is ended, though its recor
   const ended = mergeSessions(input({ switchboard: [rec], page: [{ id: `launch:${launchId}`, group: 'ended', why: 'exited', acts: [], agent: 'claude-code', folder: '/w/beta', account: null, origin: 'cli', since: NOW - MIN, launchId, sessionId: null, quietMinutes: null, probeAt: null }] }));
   assert.equal(ended[0].group, 'ended');
   assert.equal(ended[0].endedAt, NOW - MIN);
+});
+
+// FD-356 part 1 (board thread `12e4a915`, Switchboard's answer `3bfdf99b`): a launch the sessions page lists takes the
+// page's group. The fixtures are the two reads the row in docs/backlog.md records.
+const fdLaunch = (n: number) => `a1b2c3d4-0000-4000-8000-${String(356000 + n).padStart(12, '0')}`;
+const fdRec = (n: number, o: Partial<SbSessionRecord> = {}) => sb({
+  folder: `/w/p${n}`, launchedAt: NOW - (n + 1) * 10 * MIN, startedAt: NOW - (n + 1) * 10 * MIN,
+  launch: { launchId: fdLaunch(n), by: { surface: 'cli', by: null, program: null, project: null, parent: null, caller: null }, transcript: null, providerSessionId: null, turns: null, lastTurnAt: null, ended: null, endedAt: null, continuedAs: null }, ...o,
+});
+const fdPage = (n: number, o: Partial<SbPageRow> = {}): SbPageRow => ({ id: `pid:${7000 + n}`, group: 'running', why: 'working', acts: [], agent: 'claude-code', folder: `/w/p${n}`, account: 'Work Max', origin: 'cli', since: NOW - (n + 1) * 10 * MIN, launchId: fdLaunch(n), sessionId: null, quietMinutes: 1, probeAt: null, ...o });
+const groupCounts = (rows: SessionRow[]) => ({ running: rows.filter((r) => r.group === 'running').length, waiting: rows.filter((r) => r.group === 'waiting').length, needs: rows.filter((r) => r.group === 'needs-you').length });
+
+test('FD-356: the join of 2026-11-21 02:03 UTC: seven launches the record calls running are four running, one waiting on its own timer and two that need you', () => {
+  const recs = [0, 1, 2, 3, 4, 5, 6].map((n) => fdRec(n));
+  const page = [
+    ...[0, 1, 2, 3].map((n) => fdPage(n)),
+    fdPage(4, { group: 'waiting', why: 'monitoring', wait: { until: NOW + 20 * MIN, held: true } }),
+    fdPage(5, { id: `launch:${fdLaunch(5)}`, group: 'needs_you', why: 'gone', quietMinutes: null }),
+    fdPage(6, { id: `launch:${fdLaunch(6)}`, group: 'needs_you', why: 'gone', quietMinutes: null }),
+  ];
+  assert.deepEqual(groupCounts(mergeSessions(input({ switchboard: recs }))), { running: 7, waiting: 0, needs: 0 }, 'without the page: the launch records, as before');
+  const rows = mergeSessions(input({ switchboard: recs, page }));
+  assert.equal(rows.length, 7, 'each launch once');
+  assert.deepEqual(groupCounts(rows), { running: 4, waiting: 1, needs: 2 });
+  const own = rows.find((r) => r.project === 'p4')!;
+  assert.deepEqual([own.state, own.reason, own.actions], ['waiting-own', null, ['reveal']]);
+  assert.deepEqual(own.ownWait, { until: NOW + 20 * MIN, held: true });
+  assert.equal(own.id, mergeSessions(input({ switchboard: recs })).find((r) => r.project === 'p4')!.id, 'the same row id, so a selection survives the change of group');
+  const gone = rows.find((r) => r.project === 'p5')!;
+  assert.deepEqual([gone.state, gone.reason, gone.group, gone.actions], ['needs-you-not-opened', 'page-gone', 'needs-you', ['reveal', 'dismiss']]);
+  assert.equal(gone.launch?.launchId, fdLaunch(5), 'still the launch record\'s facts');
+  assert.equal(stateWords('en', gone), 'Its process ended, and no end was recorded.');
+  assert.equal(stateWords('ru', gone), 'Её процесс завершился, а конец не записан.');
+});
+
+test('FD-356: the figures of 2026-11-20 04:40 UTC: fifteen launches the record calls running are ten running and five waiting', () => {
+  const recs = Array.from({ length: 15 }, (_, n) => fdRec(n));
+  const page = recs.map((_, n) => (n < 10 ? fdPage(n) : n < 13 ? fdPage(n, { group: 'waiting', why: 'monitoring', wait: null }) : fdPage(n, { group: 'waiting', why: 'limit', probeAt: NOW + HOUR })));
+  assert.equal(groupCounts(mergeSessions(input({ switchboard: recs }))).running, 15, 'what All sessions said: Running 15');
+  const rows = mergeSessions(input({ switchboard: recs, page }));
+  assert.deepEqual(groupCounts(rows), { running: 10, waiting: 5, needs: 0 });
+  const capped = rows.find((r) => r.project === 'p13')!;
+  assert.deepEqual([capped.state, capped.reason, capped.expectedAt, capped.actions], ['waiting-reset', 'limit-launch', NOW + HOUR, ['reveal']], 'not this app\'s to continue or decline');
+  assert.equal(stateWords('en', capped), 'Stopped by a limit, waits where it runs');
+  assert.equal(stateWords('ru', capped, { autoContinue: false }), 'Остановилась на лимите, ждёт там, где идёт', 'the switch to continue by itself is not about it');
+  assert.equal(stateWords('en', rows.find((r) => r.project === 'p10')!), 'Waits for its own timer or watch');
+});
+
+test('FD-356: each needs-you reason has this Mac\'s words; the acts are the page\'s; a launch listed twice is one row; stop and ended rows are not read here', () => {
+  const whys = ['ready_to_continue', 'gone', 'duplicate', 'stuck', 'something_new'];
+  const recs = [...whys.map((_, n) => fdRec(n)), fdRec(7), fdRec(8), fdRec(9, { state: 'ended' })];
+  const rows = mergeSessions(input({ switchboard: recs, page: [
+    ...whys.map((why, n) => fdPage(n, { id: `launch:${fdLaunch(n)}`, group: 'needs_you', why, acts: n === 3 ? ['attach', 'end'] : [] })),
+    // Two processes of one launch: the row that asks most of the person wins, whatever the order.
+    fdPage(7, { group: 'needs_you', why: 'duplicate' }), fdPage(7, { id: 'pid:7107' }),
+    // A stop is the recovery list's row (step 4); it does not move the launch.
+    fdPage(8, { id: 'stop:cc-8-1', group: 'needs_you', why: 'ready_to_continue', acts: ['continue'] }),
+    // An ended launch record stays ended, whatever a stale page row says.
+    fdPage(9, { group: 'waiting', why: 'limit' }),
+  ] }));
+  assert.equal(rows.length, recs.length);
+  const by = (n: number) => rows.find((r) => r.project === `p${n}`)!;
+  assert.deepEqual(whys.map((_, n) => by(n).reason), ['page-ready', 'page-gone', 'page-twice', 'page-stuck', 'page-needs']);
+  assert.deepEqual(whys.map((_, n) => stateWords('en', by(n))), [
+    'Stopped on a usage limit. An account is ready now, so it can be continued.', 'Its process ended, and no end was recorded.', 'Runs twice: close one copy.',
+    'This board run has written nothing for 30 minutes.', 'Switchboard says it needs you.',
+  ]);
+  assert.deepEqual(whys.map((_, n) => stateWords('ru', by(n))), [
+    'Остановлена на лимите. Сейчас есть свободный аккаунт, её можно продолжить.', 'Её процесс завершился, а конец не записан.', 'Идёт дважды: закройте одну копию.',
+    'Этот запуск по доске ничего не пишет 30 минут.', 'Switchboard пишет, что она ждёт вас.',
+  ]);
+  assert.deepEqual(by(3).actions, ['attach', 'end', 'reveal', 'dismiss'], 'Switchboard\'s doors for it (FD-337), its folder, and Remove');
+  assert.deepEqual([by(7).group, by(7).reason], ['needs-you', 'page-twice']);
+  assert.equal(by(8).group, 'running');
+  assert.equal(by(9).group, 'ended');
+  // A removed row stays removed while Switchboard still lists it.
+  const hidden = mergeSessions(input({ switchboard: [fdRec(1)], page: [fdPage(1, { id: `launch:${fdLaunch(1)}`, group: 'needs_you', why: 'gone' })], dismissed: [{ id: by(1).id, at: NOW - MIN }] }));
+  assert.deepEqual(hidden, []);
 });
 
 test('FD-291 step 2: `sessions --rows` is read and checked; a Switchboard without it is unsupported, not a failure', async () => {
