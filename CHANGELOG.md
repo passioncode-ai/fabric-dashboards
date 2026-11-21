@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.223 - 2026-11-21
 
 ### Fixed
 - FD-356 part 1: All sessions no longer counts as running a session that Switchboard shows as waiting or as needing
