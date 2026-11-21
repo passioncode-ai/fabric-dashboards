@@ -5,7 +5,7 @@ import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from
 import { moveInSection, offProducts, placeStates, type MoveSection, type Product } from '../../core/products';
 import { filterServices, GITHUB_PREFIX, groupByOrganization, menuOrganizations, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
-import { groupRows, machineGroups, machineStatusWords, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
+import { groupFigure, groupRows, machineGroups, machineStatusWords, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
 import { api, GLYPH, Icon, nameOf, Spinner, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
@@ -409,7 +409,8 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
   }, [currentId, shown, endedOpen, rail]);
   const renderGroup = (group: SessionGroup, rows: SessionRow[], scope: string) => {
     // R1-V3: the sidebar's ended heading is short ("Ended: 2"); the All sessions page keeps the long one.
-    const heading = t(group === 'ended' ? 'sessions.navGroup.ended' : `sessions.group.${group}`, { n: rows.length });
+    // FD-356 part 2: this Mac's Running and Waiting figures are Switchboard's own counts (scope '' or 'here').
+    const heading = t(group === 'ended' ? 'sessions.navGroup.ended' : `sessions.group.${group}`, { n: groupFigure(group, rows, scope === '' || scope === 'here' ? sessions?.counts : null) });
     const folded = group === 'ended' && !endedOpen;
     return (
       <div key={group} role="group" aria-labelledby={`snav-${scope ? `${scope}-` : ''}${group}`}>

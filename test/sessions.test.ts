@@ -8,8 +8,8 @@ import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost, transcriptFile } from '../src/electron/console';
 import { consoleRowId, mergeSessions, processRowId, pruneRecords, SESSION_KEEP_MS, SourceReader, type MergeInput, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionNotice, type SessionRecord, type SessionRow } from '../src/core/sessions';
-import { allSessionsOf, handoversSwitch, isHandoverKey, machineSessionsOf, pageRowsOf } from '../src/core/switchboard';
-import { projectName, stateWords } from '../src/core/sessions-view';
+import { allSessionsOf, handoversSwitch, isHandoverKey, machineSessionsOf, pageOf, pageRowsOf, parsePageCounts } from '../src/core/switchboard';
+import { groupFigure, projectName, runningCount, stateWords, traySessionsLine } from '../src/core/sessions-view';
 import { SettingsStore } from '../src/core/settings';
 import { tmp } from './helpers';
 
@@ -742,6 +742,58 @@ test('FD-356: each needs-you reason has this Mac\'s words; the acts are the page
   // A removed row stays removed while Switchboard still lists it.
   const hidden = mergeSessions(input({ switchboard: [fdRec(1)], page: [fdPage(1, { id: `launch:${fdLaunch(1)}`, group: 'needs_you', why: 'gone' })], dismissed: [{ id: by(1).id, at: NOW - MIN }] }));
   assert.deepEqual(hidden, []);
+});
+
+// FD-356 part 2: This Mac's Running and Waiting figures are Switchboard's own `counts`; this app's consoles its page does
+// not list are added, and Needs you stays the rows listed here.
+test('FD-356 part 2: the figure is Switchboard\'s count, plus a console of this app its page does not list', () => {
+  const recs = [0, 1, 2].map((n) => fdRec(n));
+  const page = [fdPage(0), fdPage(1), fdPage(2, { group: 'waiting', why: 'limit', probeAt: NOW + HOUR }),
+    // A process no owner started, and one this app's console runs by itself (same folder, same start).
+    fdPage(8, { id: 'pid:7008', launchId: null, origin: null }), fdPage(9, { id: 'pid:7009', launchId: null, origin: null, folder: '/w/own', since: NOW - 5 * MIN })];
+  const consoles = [
+    { key: 'a.own', folder: '/w/own', agent: 'claude-code', startedAt: NOW - 5 * MIN - 2000, origin: 'here' as const, account: null },
+    { key: 'a.gemini', folder: '/w/gem', agent: 'gemini', startedAt: NOW - 3 * MIN, origin: 'here' as const, account: null },
+  ];
+  const rows = mergeSessions(input({ switchboard: recs, page, consoles }));
+  assert.deepEqual(rows.filter((r) => r.unlisted).map((r) => r.key), ['a.gemini'], 'only the console the page does not list');
+  const counts = { running: 4, waiting: 1, needsYou: 0 }; // as the page counts them: its four running rows and one waiting
+  const inGroup = (g: string) => rows.filter((r) => r.group === g);
+  assert.equal(inGroup('running').length, 5);
+  assert.equal(groupFigure('running', inGroup('running'), counts), 5, 'four of Switchboard\'s and the console it does not list');
+  assert.equal(groupFigure('waiting', inGroup('waiting'), counts), 1);
+  // Switchboard counts more than this app lists (a row removed here, a launch listed twice there): its figure is shown.
+  assert.equal(groupFigure('running', inGroup('running'), { running: 10, waiting: 5, needsYou: 9 }), 11);
+  assert.equal(groupFigure('waiting', inGroup('waiting'), { running: 10, waiting: 5, needsYou: 9 }), 5);
+  assert.equal(groupFigure('needs-you', inGroup('needs-you'), { running: 10, waiting: 5, needsYou: 9 }), 0, 'Needs you stays the rows listed here (FD-108)');
+  assert.equal(groupFigure('running', inGroup('running'), null), 5, 'no counts: the rows shown');
+  assert.equal(groupFigure('ended', [], counts), 0);
+  // The tray's line: this Mac's figure and every other machine's running rows.
+  const remote = { ...rows.find((r) => r.project === 'p0')!, id: 'rm:studio:x', machine: 'studio' };
+  assert.equal(runningCount([...rows, remote], counts), 6);
+  assert.equal(runningCount([...rows, remote]), 6, 'without counts: the rows');
+  assert.equal(traySessionsLine('en', rows, { running: 10, waiting: 0, needsYou: 0 }), 'Sessions: running 11');
+  // Without a page nothing is marked: the figures are the rows, as before.
+  assert.deepEqual(mergeSessions(input({ switchboard: recs, consoles })).filter((r) => r.unlisted), []);
+  // A console that shows a hosted session is listed by its launch.
+  const hosted = mergeSessions(input({ switchboard: recs, page, consoles: [{ key: 'handover.at-1', folder: '/w/p0', agent: 'claude-code', startedAt: NOW, origin: 'switchboard' as const, account: null, attachedTo: fdLaunch(0) }] }));
+  assert.deepEqual(hosted.filter((r) => r.unlisted), []);
+});
+
+test('FD-356 part 2: the page\'s counts are read whole or not at all', async () => {
+  assert.deepEqual(parsePageCounts({ counts: { ended: 730, needs_you: 4, running: 25, waiting: 3 } }), { running: 25, waiting: 3, needsYou: 4 });
+  for (const bad of [{}, { counts: null }, { counts: [] }, { counts: {} }, { counts: { running: 1, waiting: 2 } }, { counts: { running: -1, waiting: 0, needs_you: 0 } }, { counts: { running: 1.5, waiting: 0, needs_you: 0 } }, { counts: { running: '3', waiting: 0, needs_you: 0 } }, { counts: { running: 1e9, waiting: 0, needs_you: 0 } }]) {
+    assert.equal(parsePageCounts(bad as Record<string, unknown>), null, JSON.stringify(bad));
+  }
+  const row = { id: 'pid:7', group: 'running', why: 'working', acts: [], agent: 'claude-code', folder: '/w/a', origin: null, since: (NOW - HOUR) / 1000 };
+  const good = await pageOf(async (_c, args) => { assert.deepEqual(args, ['--json', 'sessions', '--rows']); return ok({ counts: { ended: 0, needs_you: 0, running: 1, waiting: 0 }, degraded: [], rows: [row] }); }, '/bin/switchboard');
+  assert.ok(good.ok);
+  assert.deepEqual([good.value.rows.map((r) => r.id), good.value.counts], [['pid:7'], { running: 1, waiting: 0, needsYou: 0 }]);
+  const none = await pageOf(async () => ok({ counts: {}, degraded: [], rows: [row] }), '/bin/switchboard');
+  assert.ok(none.ok);
+  assert.equal(none.value.counts, null, 'rows without counts: the figures stay the rows');
+  const old = await pageOf(async () => ({ code: 2, stdout: '{"error":"Invalid arguments. Run switchboard --help.","ok":false}', stderr: '' }), '/bin/switchboard');
+  assert.deepEqual(old, { ok: false, reason: 'unsupported' });
 });
 
 test('FD-291 step 2: `sessions --rows` is read and checked; a Switchboard without it is unsupported, not a failure', async () => {

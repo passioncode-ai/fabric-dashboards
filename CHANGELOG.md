@@ -9,6 +9,9 @@
   it runs", and one whose process ended without a recorded end, that runs twice, or that has gone quiet on a board run
   is under Needs you with the reason in words. Before, all of these stayed under Running, so the Running figure here
   was higher than Switchboard's (9 against 7 when measured on 2026-11-21).
+- FD-356 part 2: on this computer the Running and Waiting figures (All sessions, the sidebar, the menu-bar icon) are
+  now the counts Switchboard's own sessions page gives, so both apps say the same number. A console of this app that
+  Switchboard does not list is added to it. Needs you still counts the rows listed here, each with its act.
 
 ## 0.8.222 - 2026-11-21
 

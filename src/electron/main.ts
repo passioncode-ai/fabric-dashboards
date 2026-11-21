@@ -463,7 +463,7 @@ if (!app.requestSingleInstanceLock()) {
       if (windowVisible()) window!.webContents.send(CHANNELS.statusPush, s);
       // W2 (UX-04): the tray, the Dock and the window count one queue (src/core/attention.ts).
       const now = Date.now();
-      tray?.update(s.services, s.limits ?? {}, s.sessions?.rows ?? []);
+      tray?.update(s.services, s.limits ?? {}, s.sessions?.rows ?? [], s.sessions?.counts ?? null);
       const next = badgeText(attentionQueue(s.services, { now, limits: s.limits }).length);
       if (next !== badge) { badge = next; app.dock?.setBadge(next); }
       // A failed action leaves the queue after 30 minutes with no event of its own: count again then.

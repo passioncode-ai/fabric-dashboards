@@ -126,6 +126,9 @@ export interface SessionRow {
   /** FD-291: another machine's limit stop that its Switchboard reads as ready to continue (`acts: continue`, SB-395):
    *  the session id Continue passes to `sessions continue` there. Absent for every other row. */
   remoteSession?: string;
+  /** FD-356 part 2: a running console of this app that Switchboard's sessions page does not list (a runtime it does not
+   *  read), so This Mac's figure adds it to Switchboard's `counts`. Absent for every other row and where no page is read. */
+  unlisted?: true;
   /** The row's latest known time, the list's order (newest first). */
   at: number;
 }
@@ -181,6 +184,10 @@ export interface SbPageRow {
    *  it from the idle close meanwhile (`held`). Null for every other row. */
   wait?: { until: number | null; held: boolean } | null;
 }
+
+/** FD-356 part 2 (Switchboard's answer `3bfdf99b`, CONTRACTS «Sessions page (SB-395)»): the page's own `counts`, the one
+ *  definition of how many sessions run, wait and need the person on its machine. */
+export interface SbPageCounts { running: number; waiting: number; needsYou: number }
 
 /** Who started a launch, as Switchboard recorded it. Each field is null when absent or not of the expected form. */
 export interface LaunchedBy {
@@ -320,6 +327,8 @@ export interface SessionsStatus {
   /** FD-231: whether every agent process of the Mac is listed (Switchboard answered `sessions --machine`); absent or false,
    *  the page keeps its footnote that sessions started without Switchboard are not listed. */
   machine?: boolean;
+  /** FD-356 part 2: this Mac's `counts` from Switchboard's sessions page, read with the rows; absent where it has none. */
+  counts?: SbPageCounts;
   /** Whether Switchboard is installed; without it only this app's own consoles are listed. */
   switchboard: boolean | null; // null: not looked for yet (SCN-078)
   /** FD-319: the running Switchboard is older than the floor this app reads fully. */
@@ -470,6 +479,14 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     return hit;
   };
 
+  // #region sessions-page-counts — docs: docs/ux/scenarios.md#scn-078-see-every-coding-session-in-one-place
+  // FD-356 part 2: whether the sessions page lists a console of this app, by its launch or by its folder and start (as
+  // step 6 tells a process of ours). One it does not list is marked, so the figure adds it to Switchboard's `counts`.
+  const pageLive = (i.page ?? []).filter((p) => p.group !== 'ended' && !p.id.startsWith('stop:'));
+  const onPage = (folder: string, startedAt: number | null, launchId: string | null | undefined) => pageLive.some((p) => (Boolean(launchId) && p.launchId === launchId)
+    || (norm(p.folder) === norm(folder) && startedAt !== null && p.since !== null && Math.abs(p.since - startedAt) <= SAME_START_MS));
+  const mark = (r: SessionRow, launchId: string | null | undefined) => { if (i.page && r.group === 'running' && !onPage(r.folder, r.startedAt, launchId)) r.unlisted = true; return r; };
+  // #endregion sessions-page-counts
   // 1. This app's consoles that run now.
   const consoleKeys = new Set<string>();
   for (const c of i.consoles) {
@@ -479,20 +496,20 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       // only close the view, so the row offers none: the session ends where it runs, or by itself.
       const s = sb.find((x) => !used.has(x) && x.launch?.launchId === c.attachedTo);
       if (s) used.add(s);
-      add(row({
+      add(mark(row({
         id: s ? sbRowId(s) : consoleRowId(c.key, c.startedAt), key: c.key, folder: s?.folder ?? c.folder, agent: s?.agent ?? c.agent,
         account: s?.account || null, context: s?.context ?? null, contextName: s?.contextName ?? null, origin: 'switchboard', reason: null,
         state: 'running-ours', startedAt: s?.launchedAt ?? s?.startedAt ?? c.startedAt, endedAt: null, launch: s?.launch ?? null, actions: ['reveal'],
-      }));
+      }), c.attachedTo));
       continue;
     }
     const s = sbOf(c.folder, c.startedAt);
-    add(row({
+    add(mark(row({
       id: consoleRowId(c.key, c.startedAt), key: c.key, folder: c.folder, agent: c.agent, account: c.account ?? s?.account ?? null,
       context: s?.context ?? null, contextName: s?.contextName ?? null, origin: c.origin, reason: null,
       state: c.failedResume ? 'needs-you-resume-failed' : 'running-ours', startedAt: c.startedAt, endedAt: null, launch: s?.launch ?? null, paid: c.paid ?? null,
       ...(c.ownSignIn && !c.account && !s?.account ? { ownSignIn: true } : {}),
-    }));
+    }), s?.launch?.launchId));
   }
 
   // 2. What ended here, and hand-overs that did not open here (kept 24 h). A record the person removed is still read

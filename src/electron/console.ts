@@ -32,7 +32,7 @@ export { newSessionChoiceOf }; // FD-302: moved to src/core/new-session.ts; test
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import { SERVICE_KEY, type SettingsStore } from '../core/settings';
 import { ratingDueAfter } from '../core/help';
-import { accountsOf, allSessionsOf, belowFloor, isOldSwitchboard, noAnswer, parseSwitchboardVersion, switchboardStamp, SWITCHBOARD_FLOOR, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { accountsOf, allSessionsOf, belowFloor, isOldSwitchboard, noAnswer, parseSwitchboardVersion, switchboardStamp, SWITCHBOARD_FLOOR, bindingFor, machineSessionsOf, pageOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView, claudeConfigRoots, rootOfSession, transcriptInRoots } from '../core/recovery';
@@ -42,7 +42,7 @@ import { HandoverBook } from '../core/handover-book';
 import { StopClaims } from '../core/stop-claims';
 import { RecoveryBook } from '../core/recovery-book';
 import { ownedRunner } from '../core/children';
-import { attachOwnKey, consoleRowId, lastLine, degradedSince, dropRemoteTwins, folderTerminalKey, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
+import { attachOwnKey, consoleRowId, lastLine, degradedSince, dropRemoteTwins, folderTerminalKey, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageCounts, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -148,7 +148,7 @@ const QUIT_SETTLE_MS = 2500;
 /** FD-231: how long a Switchboard that does not know `sessions --machine` (before 0.7.72) is left unasked. */
 export const MACHINE_RECHECK_MS = 10 * 60_000;
 /** FD-291 step 2: this Mac's agent processes, as the sessions page (`--rows`) or, from an older Switchboard, `--machine` read them. */
-type LocalProcesses = { page: SbPageRow[] | null; machine: SbMachineProcess[] | null };
+type LocalProcesses = { page: SbPageRow[] | null; machine: SbMachineProcess[] | null; counts?: SbPageCounts | null };
 const QUIT_FINISH_MS = 1500;
 
 /** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
@@ -253,8 +253,8 @@ export class ConsoleHost {
     if (!inv.switchboard) return { ok: true, value: { page: null, machine: [] } };
     // FD-291 step 2 (SB-395): the sessions page first, its groups decided by Switchboard; `--machine` where it has none.
     if (Date.now() >= this.rowsUnsupportedUntil) {
-      const p = await pageRowsOf(this.run, inv.switchboard);
-      if (p.ok) { this.machineListed = true; return { ok: true, value: { page: p.value, machine: null } }; }
+      const p = await pageOf(this.run, inv.switchboard);
+      if (p.ok) { this.machineListed = true; return { ok: true, value: { page: p.value.rows, machine: null, counts: p.value.counts } }; } // FD-356 part 2: with its counts
       if (p.reason !== 'unsupported') return p as SourceResult<LocalProcesses>;
       this.rowsUnsupportedUntil = Date.now() + MACHINE_RECHECK_MS;
     }
@@ -1503,7 +1503,8 @@ export class ConsoleHost {
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
     const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handovers.degraded, this.rec.degraded, this.attentionDegraded].filter((d): d is SourceDegraded => d !== null);
-    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, ...(this.versionOf?.old ? { switchboardOld: { version: this.versionOf.version!, floor: SWITCHBOARD_FLOOR } } : {}), handovers: { enabled: this.handovers.enabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
+    const counts = this.machineSessions.value?.page ? this.machineSessions.value.counts : null; // FD-356 part 2
+    return { rows, degraded, machine: this.machineListed, ...(counts ? { counts } : {}), switchboard: this.switchboardPresent, ...(this.versionOf?.old ? { switchboardOld: { version: this.versionOf.version!, floor: SWITCHBOARD_FLOOR } } : {}), handovers: { enabled: this.handovers.enabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
   }
 
   // #region dispatch-agent — docs: docs/ux/scenarios.md#scn-092-see-a-session-fabric-started-for-a-board-request
